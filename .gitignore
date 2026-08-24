@@ -27,3 +27,6 @@ yarn-error.log*
 
 # Sync temp
 .sync-temp/
+
+# TypeScript build info
+*.tsbuildinfo
