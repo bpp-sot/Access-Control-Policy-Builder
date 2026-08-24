@@ -1,0 +1,247 @@
+{
+  "evidenceEntries": [
+    {
+      "id": "ev-azure-whitelist-model",
+      "classification": "A",
+      "sourceTitle": "Azure Access Control Policy Samples — Best Practices",
+      "sourcePath": "access-control-policies/Azure/readme.md",
+      "sourceUrl": "https://github.com/LearnOnDemandSystems/labauthor/blob/master/access-control-policies/Azure/readme.md",
+      "rationale": "Skillable recommends a whitelist policy model: encase allowed resources in a 'not' block with effect 'Deny'.",
+      "confidence": "high"
+    },
+    {
+      "id": "ev-azure-vm-security",
+      "classification": "A",
+      "sourceTitle": "Azure Access Control Policy Samples — VM Best Practices",
+      "sourcePath": "access-control-policies/Azure/readme.md",
+      "sourceUrl": "https://github.com/LearnOnDemandSystems/labauthor/blob/master/access-control-policies/Azure/readme.md",
+      "rationale": "VMs are the most abused resource. Limit by SKU, Region, and Name for maximum security.",
+      "confidence": "high"
+    },
+    {
+      "id": "ev-azure-deny-effect",
+      "classification": "A",
+      "sourceTitle": "Azure Access Control Policy Samples — Best Practices",
+      "sourcePath": "access-control-policies/Azure/readme.md",
+      "sourceUrl": "https://github.com/LearnOnDemandSystems/labauthor/blob/master/access-control-policies/Azure/readme.md",
+      "rationale": "The effect should always be Deny for lab environment policies.",
+      "confidence": "high"
+    },
+    {
+      "id": "ev-azure-block-all-vms",
+      "classification": "A",
+      "sourceTitle": "Block All VMs",
+      "sourcePath": "access-control-policies/Azure/Block All VMs/policy.json",
+      "sourceUrl": "https://github.com/LearnOnDemandSystems/labauthor/blob/master/access-control-policies/Azure/Block%20All%20VMs/policy.json",
+      "rationale": "Official sample demonstrating how to block all VM creation by type.",
+      "confidence": "high"
+    },
+    {
+      "id": "ev-azure-whitelist-by-type",
+      "classification": "A",
+      "sourceTitle": "Block Resources by Type (Partial Lockdown)",
+      "sourcePath": "access-control-policies/Azure/Block Resources by Type (Partial Lockdown)/policy.json",
+      "sourceUrl": "https://github.com/LearnOnDemandSystems/labauthor/blob/master/access-control-policies/Azure/Block%20Resources%20by%20Type%20(Partial%20Lockdown)/policy.json",
+      "rationale": "Official sample demonstrating whitelist by resource type using 'not' + 'in'.",
+      "confidence": "high"
+    },
+    {
+      "id": "ev-azure-full-lockdown",
+      "classification": "A",
+      "sourceTitle": "Block Resources by Type, Name, and SKU (Full Lockdown)",
+      "sourcePath": "access-control-policies/Azure/Block Resources by Type, Name, and SKU (Full Lockdown)/policy.json",
+      "sourceUrl": "https://github.com/LearnOnDemandSystems/labauthor/blob/master/access-control-policies/Azure/Block%20Resources%20by%20Type%2C%20Name%2C%20and%20SKU%20(Full%20Lockdown)/policy.json",
+      "rationale": "Official sample demonstrating combined type, name, and SKU restrictions.",
+      "confidence": "high"
+    },
+    {
+      "id": "ev-azure-block-specific-sku",
+      "classification": "A",
+      "sourceTitle": "Block Specific VM Sizes",
+      "sourcePath": "access-control-policies/Azure/Block Specific VM Sizes/policy.json",
+      "sourceUrl": "https://github.com/LearnOnDemandSystems/labauthor/blob/master/access-control-policies/Azure/Block%20Specific%20VM%20Sizes/policy.json",
+      "rationale": "Official sample demonstrating blacklist of specific VM SKUs.",
+      "confidence": "high"
+    },
+    {
+      "id": "ev-azure-restrict-region",
+      "classification": "A",
+      "sourceTitle": "Limit Resource Deployment Locations",
+      "sourcePath": "access-control-policies/Azure/Limit Resource Deployment Locations/policy.json",
+      "sourceUrl": "https://github.com/LearnOnDemandSystems/labauthor/blob/master/access-control-policies/Azure/Limit%20Resource%20Deployment%20Locations/policy.json",
+      "rationale": "Official sample demonstrating region restriction using notIn and notEquals on location field.",
+      "confidence": "high"
+    },
+    {
+      "id": "ev-azure-vmss-capacity",
+      "classification": "A",
+      "sourceTitle": "Limit VM & VM Scale Sets by Name, SKU, Region, and Capacity",
+      "sourcePath": "access-control-policies/Azure/Limit VM & VM Scale Sets by Name, SKU, Region, and Capacity/policy.json",
+      "sourceUrl": "https://github.com/LearnOnDemandSystems/labauthor/blob/master/access-control-policies/Azure/Limit%20VM%20%26%20VM%20Scale%20Sets%20by%20Name%2C%20SKU%2C%20Region%2C%20and%20Capacity/policy.json",
+      "rationale": "Official sample demonstrating VMSS capacity limits and multi-resource whitelists.",
+      "confidence": "high"
+    },
+    {
+      "id": "ev-azure-vm-whitelist",
+      "classification": "A",
+      "sourceTitle": "Restrict Resources to VMs by Name, Size, and Location",
+      "sourcePath": "access-control-policies/Azure/Limit VM by Name, Size, and Location/policy.json",
+      "sourceUrl": "https://github.com/LearnOnDemandSystems/labauthor/blob/master/access-control-policies/Azure/Limit%20VM%20by%20Name%2C%20Size%2C%20and%20Location/policy.json",
+      "rationale": "Official sample demonstrating VM-specific whitelist with supporting resources.",
+      "confidence": "high"
+    },
+    {
+      "id": "ev-azure-whitelist-sku",
+      "classification": "A",
+      "sourceTitle": "Limit to Specific VM Sizes",
+      "sourcePath": "access-control-policies/Azure/Limit to Specific VM Sizes/policy.json",
+      "sourceUrl": "https://github.com/LearnOnDemandSystems/labauthor/blob/master/access-control-policies/Azure/Limit%20to%20Specific%20VM%20Sizes/policy.json",
+      "rationale": "Official sample demonstrating whitelist approach for VM sizes.",
+      "confidence": "high"
+    },
+    {
+      "id": "ev-azure-naming-pattern",
+      "classification": "A",
+      "sourceTitle": "Require Specific Resource Name",
+      "sourcePath": "access-control-policies/Azure/Require Specific Resource Name/policy.json",
+      "sourceUrl": "https://github.com/LearnOnDemandSystems/labauthor/blob/master/access-control-policies/Azure/Require%20Specific%20Resource%20Name/policy.json",
+      "rationale": "Official sample demonstrating naming pattern enforcement using 'match' operator.",
+      "confidence": "high"
+    },
+    {
+      "id": "ev-azure-vmss-restrict",
+      "classification": "A",
+      "sourceTitle": "Restrict resources to constrained VM scale sets",
+      "sourcePath": "access-control-policies/Azure/RestrictToVMScaleSets/policy.json",
+      "sourceUrl": "https://github.com/LearnOnDemandSystems/labauthor/blob/master/access-control-policies/Azure/RestrictToVMScaleSets/policy.json",
+      "rationale": "Official sample demonstrating VMSS-specific whitelist with computer name prefix.",
+      "confidence": "high"
+    },
+    {
+      "id": "ev-aws-allow-deny-model",
+      "classification": "A",
+      "sourceTitle": "What Are Access Control Policies?",
+      "sourcePath": "access-control-policies/readme.md",
+      "sourceUrl": "https://github.com/LearnOnDemandSystems/labauthor/blob/master/access-control-policies/readme.md",
+      "rationale": "AWS ACPs use IAM managed identity-based policies with Allow/Deny statements.",
+      "confidence": "high"
+    },
+    {
+      "id": "ev-aws-deployment-methods",
+      "classification": "A",
+      "sourceTitle": "What Are Access Control Policies? — Deployment FAQ",
+      "sourcePath": "access-control-policies/readme.md",
+      "sourceUrl": "https://github.com/LearnOnDemandSystems/labauthor/blob/master/access-control-policies/readme.md",
+      "rationale": "Documents two deployment methods: pre-entry (ACP applied after deployment) and background (ACP active during deployment, needs exceptions).",
+      "confidence": "high"
+    },
+    {
+      "id": "ev-aws-allow-ec2-except-vms",
+      "classification": "A",
+      "sourceTitle": "Allow EC2 Except VMs",
+      "sourcePath": "access-control-policies/AWS/Allow EC2 Except VMs/policy.json",
+      "sourceUrl": "https://github.com/LearnOnDemandSystems/labauthor/blob/master/access-control-policies/AWS/Allow%20EC2%20Except%20VMs/policy.json",
+      "rationale": "Official sample demonstrating allow-all-EC2 with deny on RunInstances.",
+      "confidence": "high"
+    },
+    {
+      "id": "ev-aws-allow-by-type",
+      "classification": "A",
+      "sourceTitle": "Allow Resources by Type (Partial Lockdown)",
+      "sourcePath": "access-control-policies/AWS/Allow Resources by Type (Partial Lockdown)/policy.json",
+      "sourceUrl": "https://github.com/LearnOnDemandSystems/labauthor/blob/master/access-control-policies/AWS/Allow%20Resources%20by%20Type%20(Partial%20Lockdown)/policy.json",
+      "rationale": "Official sample demonstrating service-level allowlist for EC2 and S3.",
+      "confidence": "high"
+    },
+    {
+      "id": "ev-aws-limit-vm-sizes",
+      "classification": "A",
+      "sourceTitle": "Limit to Specific VM Sizes",
+      "sourcePath": "access-control-policies/AWS/Limit to Specific VM Sizes/policy.json",
+      "sourceUrl": "https://github.com/LearnOnDemandSystems/labauthor/blob/master/access-control-policies/AWS/Limit%20to%20Specific%20VM%20Sizes/policy.json",
+      "rationale": "Official sample demonstrating instance type restriction using StringNotEquals condition on ec2:InstanceType.",
+      "confidence": "high"
+    },
+    {
+      "id": "ev-azure-policy-structure",
+      "classification": "C",
+      "sourceTitle": "Azure Policy definition structure",
+      "sourcePath": "https://docs.microsoft.com/en-us/azure/governance/policy/concepts/definition-structure",
+      "sourceUrl": "https://docs.microsoft.com/en-us/azure/governance/policy/concepts/definition-structure",
+      "rationale": "Native Azure documentation for policy definition structure, referenced by Skillable readme.",
+      "confidence": "high"
+    },
+    {
+      "id": "ev-aws-policy-elements",
+      "classification": "D",
+      "sourceTitle": "AWS IAM policy elements reference",
+      "sourcePath": "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements.html",
+      "sourceUrl": "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements.html",
+      "rationale": "Native AWS documentation for IAM policy elements, referenced by Skillable readme.",
+      "confidence": "high"
+    },
+    {
+      "id": "ev-skillable-acp-best-practices",
+      "classification": "B",
+      "sourceTitle": "Skillable ACP Best Practices",
+      "sourcePath": "https://docs.skillable.com/docs/acp-best-practices",
+      "sourceUrl": "https://docs.skillable.com/docs/acp-best-practices",
+      "rationale": "Official Skillable documentation on ACP best practices.",
+      "confidence": "medium"
+    },
+    {
+      "id": "ev-skillable-cloud-security",
+      "classification": "B",
+      "sourceTitle": "Skillable Cloud Security Standards",
+      "sourcePath": "https://docs.skillable.com/docs/cloud-security-standards",
+      "sourceUrl": "https://docs.skillable.com/docs/cloud-security-standards",
+      "rationale": "Official Skillable documentation on cloud security standards.",
+      "confidence": "medium"
+    },
+    {
+      "id": "ev-skillable-cloud-fabric",
+      "classification": "B",
+      "sourceTitle": "Skillable Cloud Fabric Explanation",
+      "sourcePath": "https://docs.skillable.com/docs/cloud-fabric-explanation",
+      "sourceUrl": "https://docs.skillable.com/docs/cloud-fabric-explanation",
+      "rationale": "Official Skillable documentation on cloud fabric.",
+      "confidence": "medium"
+    },
+    {
+      "id": "ev-app-safety-wildcard-warning",
+      "classification": "E",
+      "sourceTitle": "Application safety constraint — wildcard warning",
+      "sourcePath": null,
+      "sourceUrl": null,
+      "rationale": "Broad wildcard permissions (e.g. ec2:*, s3:*, *) increase the risk of abuse. The application flags these for manual review.",
+      "confidence": "high"
+    },
+    {
+      "id": "ev-app-safety-no-sample",
+      "classification": "E",
+      "sourceTitle": "Application safety constraint — no official sample",
+      "sourcePath": null,
+      "sourceUrl": null,
+      "rationale": "Services without an official Skillable sample are flagged as requiring manual review.",
+      "confidence": "high"
+    },
+    {
+      "id": "ev-app-safety-background-deployment",
+      "classification": "E",
+      "sourceTitle": "Application safety constraint — background deployment",
+      "sourcePath": null,
+      "sourceUrl": null,
+      "rationale": "Background deployment means the ACP is active during deployment. Template operations must be permitted or deployment will fail.",
+      "confidence": "high"
+    },
+    {
+      "id": "ev-unverified-operation-mapping",
+      "classification": "G",
+      "sourceTitle": "Operation-to-action mapping (unverified)",
+      "sourcePath": null,
+      "sourceUrl": null,
+      "rationale": "Human-friendly operation labels (View, Create, Delete, etc.) are mapped to provider-native actions based on standard naming conventions. No Skillable example demonstrates this mapping.",
+      "confidence": "low"
+    }
+  ]
+}

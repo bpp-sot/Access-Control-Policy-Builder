@@ -1,0 +1,416 @@
+{
+  "provider": "Azure",
+  "policyModel": "Azure Policy",
+  "policyModelDescription": "Skillable Azure ACPs use Azure Policy definitions. The recommended approach is a whitelist model: encase allowed resources in a 'not' block with effect 'Deny', so anything not explicitly permitted is blocked.",
+  "bestPractices": [
+    {
+      "practice": "Use a whitelist policy model",
+      "description": "By default Azure uses a blacklist model (Owner/Contributor allow almost anything). For lab environments, encase the policy in a 'not' statement with effect 'Deny' so only explicitly allowed resources can be created.",
+      "evidenceClassification": "A",
+      "sourcePath": "access-control-policies/Azure/readme.md"
+    },
+    {
+      "practice": "Allow only the VMs required by the lab — or none at all",
+      "description": "VMs are the most abused resource by malicious users (e.g. bitcoin miners). Limit by SKU, Region, and Name. Combining all three provides the highest security.",
+      "evidenceClassification": "A",
+      "sourcePath": "access-control-policies/Azure/readme.md"
+    },
+    {
+      "practice": "Always use Deny effect",
+      "description": "When designing policies for lab environments, the effect should always be Deny.",
+      "evidenceClassification": "A",
+      "sourcePath": "access-control-policies/Azure/readme.md"
+    }
+  ],
+  "patterns": [
+    {
+      "id": "azure-block-all-vms",
+      "title": "Block All VMs",
+      "reusablePattern": "block-by-type",
+      "purpose": "Block the creation of all virtual machines.",
+      "sourcePath": "access-control-policies/Azure/Block All VMs/policy.json",
+      "sourceReadmePath": "access-control-policies/Azure/Block All VMs/Readme.md",
+      "githubUrl": "https://github.com/LearnOnDemandSystems/labauthor/tree/master/access-control-policies/Azure/Block%20All%20VMs",
+      "evidenceClassification": "A",
+      "servicesRepresented": ["compute"],
+      "resourceTypesRepresented": ["Microsoft.Compute/virtualMachines"],
+      "regionsOrLocationsMentioned": [],
+      "sizesOrSkusMentioned": [],
+      "wildcardUse": [],
+      "policyJson": {
+        "if": {
+          "anyOf": [
+            {
+              "field": "type",
+              "equals": "Microsoft.Compute/virtualMachines"
+            }
+          ]
+        },
+        "then": {
+          "effect": "Deny"
+        }
+      },
+      "structureNotes": "Simple deny policy for a single resource type. Uses anyOf wrapper for extensibility.",
+      "applicableWhen": "The lab does not require any virtual machines."
+    },
+    {
+      "id": "azure-block-by-type-partial",
+      "title": "Block Resources by Type (Partial Lockdown)",
+      "reusablePattern": "whitelist-by-type",
+      "purpose": "Deploy an initial framework policy that allows only specified resource types. Recommended to be used in conjunction with other policies when high-cost resources may be present.",
+      "sourcePath": "access-control-policies/Azure/Block Resources by Type (Partial Lockdown)/policy.json",
+      "sourceReadmePath": "access-control-policies/Azure/Block Resources by Type (Partial Lockdown)/Readme.md",
+      "githubUrl": "https://github.com/LearnOnDemandSystems/labauthor/tree/master/access-control-policies/Azure/Block%20Resources%20by%20Type%20(Partial%20Lockdown)",
+      "evidenceClassification": "A",
+      "servicesRepresented": ["compute", "networking"],
+      "resourceTypesRepresented": [
+        "Microsoft.Compute/virtualMachines",
+        "Microsoft.Network/networkSecurityGroups",
+        "Microsoft.Network/publicIPAddresses",
+        "Microsoft.Network/networkInterfaces"
+      ],
+      "regionsOrLocationsMentioned": [],
+      "sizesOrSkusMentioned": [],
+      "wildcardUse": [],
+      "policyJson": {
+        "if": {
+          "not": {
+            "field": "type",
+            "in": [
+              "Microsoft.Compute/virtualMachines",
+              "Microsoft.Network/networkSecurityGroups",
+              "Microsoft.Network/publicIPAddresses",
+              "Microsoft.Network/networkInterfaces"
+            ]
+          }
+        },
+        "then": {
+          "effect": "deny"
+        }
+      },
+      "structureNotes": "Whitelist model using 'not' with 'in' operator. Allows only specified resource types.",
+      "applicableWhen": "The lab needs a baseline whitelist of allowed resource types."
+    },
+    {
+      "id": "azure-full-lockdown-type-name-sku",
+      "title": "Block Resources by Type, Name, and SKU (Full Lockdown)",
+      "reusablePattern": "full-lockdown-whitelist",
+      "purpose": "Prevent users from creating anything outside of specified components. Combines type, SKU, and name restrictions for VMs.",
+      "sourcePath": "access-control-policies/Azure/Block Resources by Type, Name, and SKU (Full Lockdown)/policy.json",
+      "sourceReadmePath": "access-control-policies/Azure/Block Resources by Type, Name, and SKU (Full Lockdown)/Readme.md",
+      "githubUrl": "https://github.com/LearnOnDemandSystems/labauthor/tree/master/access-control-policies/Azure/Block%20Resources%20by%20Type%2C%20Name%2C%20and%20SKU%20(Full%20Lockdown)",
+      "evidenceClassification": "A",
+      "servicesRepresented": ["compute", "networking", "storage", "database"],
+      "resourceTypesRepresented": [
+        "Microsoft.Compute/virtualMachines",
+        "Microsoft.Network/",
+        "Microsoft.Storage/storageAccounts",
+        "Microsoft.Sql/servers"
+      ],
+      "regionsOrLocationsMentioned": [],
+      "sizesOrSkusMentioned": ["Standard_A1"],
+      "wildcardUse": ["Microsoft.Network/"],
+      "policyJson": {
+        "if": {
+          "not": {
+            "anyOf": [
+              {
+                "allOf": [
+                  { "field": "type", "equals": "Microsoft.Compute/virtualMachines" },
+                  { "field": "Microsoft.Compute/virtualMachines/sku.name", "in": ["Standard_A1"] },
+                  { "field": "name", "in": ["VM-1", "VM-2"] }
+                ]
+              },
+              {
+                "field": "type",
+                "in": [
+                  "Microsoft.Network/",
+                  "Microsoft.Storage/storageAccounts",
+                  "Microsoft.Sql/servers"
+                ]
+              }
+            ]
+          }
+        },
+        "then": { "effect": "Deny" }
+      },
+      "structureNotes": "Complex whitelist with nested anyOf/allOf. Note: 'Microsoft.Network/' with trailing slash is unusual and may be incomplete — flagged for manual review.",
+      "applicableWhen": "The lab requires strict control over VM names, sizes, and allowed resource types."
+    },
+    {
+      "id": "azure-block-specific-vm-sizes",
+      "title": "Block Specific VM Sizes",
+      "reusablePattern": "block-specific-sku",
+      "purpose": "Deny users the ability to create VMs of specific sizes (blacklist approach).",
+      "sourcePath": "access-control-policies/Azure/Block Specific VM Sizes/policy.json",
+      "sourceReadmePath": "access-control-policies/Azure/Block Specific VM Sizes/Readme.md",
+      "githubUrl": "https://github.com/LearnOnDemandSystems/labauthor/tree/master/access-control-policies/Azure/Block%20Specific%20VM%20Sizes",
+      "evidenceClassification": "A",
+      "servicesRepresented": ["compute"],
+      "resourceTypesRepresented": ["Microsoft.Compute/virtualMachines"],
+      "regionsOrLocationsMentioned": [],
+      "sizesOrSkusMentioned": ["Standard_D64"],
+      "wildcardUse": [],
+      "policyJson": {
+        "if": {
+          "allOf": [
+            { "field": "type", "equals": "Microsoft.Compute/virtualMachines" },
+            { "field": "Microsoft.Compute/virtualMachines/sku.name", "in": ["Standard_D64"] }
+          ]
+        },
+        "then": { "effect": "deny" }
+      },
+      "structureNotes": "Blacklist approach — blocks specific SKU. The readme recommends using the whitelist approach (Limit to Specific VM Sizes) instead.",
+      "applicableWhen": "The lab needs to block specific expensive VM sizes while allowing others."
+    },
+    {
+      "id": "azure-limit-locations",
+      "title": "Limit Resource Deployment Locations",
+      "reusablePattern": "restrict-region",
+      "purpose": "Prevent users from creating resources in any region other than the ones defined.",
+      "sourcePath": "access-control-policies/Azure/Limit Resource Deployment Locations/policy.json",
+      "sourceReadmePath": "access-control-policies/Azure/Limit Resource Deployment Locations/readme.md",
+      "githubUrl": "https://github.com/LearnOnDemandSystems/labauthor/tree/master/access-control-policies/Azure/Limit%20Resource%20Deployment%20Locations",
+      "evidenceClassification": "A",
+      "servicesRepresented": ["all"],
+      "resourceTypesRepresented": ["*"],
+      "regionsOrLocationsMentioned": ["eastus", "global"],
+      "sizesOrSkusMentioned": [],
+      "wildcardUse": [],
+      "policyJson": {
+        "if": {
+          "allOf": [
+            { "field": "location", "notIn": ["eastus"] },
+            { "field": "location", "notEquals": "global" }
+          ]
+        },
+        "then": { "effect": "Deny" }
+      },
+      "structureNotes": "Location-based restriction using notIn and notEquals operators. Allows specified regions plus 'global' for global resource types.",
+      "applicableWhen": "The lab must restrict resource creation to specific Azure regions."
+    },
+    {
+      "id": "azure-limit-vm-vmss-name-sku-region-capacity",
+      "title": "Limit VM & VM Scale Sets by Name, SKU, Region, and Capacity",
+      "reusablePattern": "multi-resource-complex-whitelist",
+      "purpose": "Limit both VMs and VM scale sets by name, SKU, and region. For scale sets, also limits maximum deployable instances.",
+      "sourcePath": "access-control-policies/Azure/Limit VM & VM Scale Sets by Name, SKU, Region, and Capacity/policy.json",
+      "sourceReadmePath": "access-control-policies/Azure/Limit VM & VM Scale Sets by Name, SKU, Region, and Capacity/readme.md",
+      "githubUrl": "https://github.com/LearnOnDemandSystems/labauthor/tree/master/access-control-policies/Azure/Limit%20VM%20%26%20VM%20Scale%20Sets%20by%20Name%2C%20SKU%2C%20Region%2C%20and%20Capacity",
+      "evidenceClassification": "A",
+      "servicesRepresented": ["compute", "networking", "storage", "monitoring"],
+      "resourceTypesRepresented": [
+        "Microsoft.Compute/virtualMachines",
+        "Microsoft.Compute/virtualMachineScaleSets",
+        "Microsoft.Network",
+        "Microsoft.Insights/autoscalesettings",
+        "Microsoft.Storage/storageAccounts"
+      ],
+      "regionsOrLocationsMentioned": ["eastus", "eastus2", "global"],
+      "sizesOrSkusMentioned": ["Standard_DS1_v2"],
+      "wildcardUse": [],
+      "policyJson": {
+        "if": {
+          "not": {
+            "anyOf": [
+              {
+                "allOf": [
+                  { "field": "type", "equals": "Microsoft.Compute/virtualMachines" },
+                  { "field": "name", "in": ["app-server"] },
+                  {
+                    "field": "Microsoft.Compute/virtualMachines/sku.name",
+                    "in": ["Standard_DS1_v2"]
+                  },
+                  { "field": "location", "In": ["eastus2", "eastus"] },
+                  { "field": "location", "notEquals": "global" }
+                ]
+              },
+              {
+                "allOf": [
+                  { "field": "type", "equals": "Microsoft.Compute/virtualMachineScaleSets" },
+                  { "field": "name", "in": ["app-scaleset"] },
+                  {
+                    "field": "Microsoft.Compute/virtualMachineScaleSets/sku.name",
+                    "in": ["Standard_DS1_v2"]
+                  },
+                  {
+                    "field": "Microsoft.Compute/virtualMachineScaleSets/sku.capacity",
+                    "lessOrEquals": 3
+                  },
+                  { "field": "location", "In": ["eastus", "eastus2"] },
+                  { "field": "location", "notEquals": "global" }
+                ]
+              },
+              { "field": "type", "contains": "Microsoft.Network" },
+              { "field": "type", "contains": "Microsoft.Insights/autoscalesettings" },
+              { "field": "type", "contains": "Microsoft.Storage/storageAccounts" }
+            ]
+          }
+        },
+        "then": { "effect": "Deny" }
+      },
+      "structureNotes": "Comprehensive policy covering VMs and scale sets with capacity limits. Uses 'contains' for broader resource type matching. Note: inconsistent operator casing ('In' vs 'in') preserved from source.",
+      "applicableWhen": "The lab uses both VMs and VM scale sets with strict naming, sizing, regional, and capacity constraints."
+    },
+    {
+      "id": "azure-limit-vm-name-size-location",
+      "title": "Restrict Resources to VMs by Name, Size, and Location",
+      "reusablePattern": "vm-specific-whitelist",
+      "purpose": "Restrict resources to only those required to deploy virtual machines with specific names and sizes to a single location.",
+      "sourcePath": "access-control-policies/Azure/Limit VM by Name, Size, and Location/policy.json",
+      "sourceReadmePath": "access-control-policies/Azure/Limit VM by Name, Size, and Location/readme.md",
+      "githubUrl": "https://github.com/LearnOnDemandSystems/labauthor/tree/master/access-control-policies/Azure/Limit%20VM%20by%20Name%2C%20Size%2C%20and%20Location",
+      "evidenceClassification": "A",
+      "servicesRepresented": ["compute", "networking", "storage"],
+      "resourceTypesRepresented": [
+        "Microsoft.Compute/virtualMachines",
+        "Microsoft.Network/",
+        "Microsoft.Compute/disks",
+        "Microsoft.Compute/virtualMachines/extensions",
+        "Microsoft.Storage/storageAccounts"
+      ],
+      "regionsOrLocationsMentioned": ["eastus", "global"],
+      "sizesOrSkusMentioned": ["Standard_DS1_v2", "Standard_B1s", "Standard_B1ms"],
+      "wildcardUse": [],
+      "policyJson": {
+        "if": {
+          "not": {
+            "anyOf": [
+              {
+                "allOf": [
+                  { "field": "type", "equals": "Microsoft.Compute/virtualMachines" },
+                  {
+                    "field": "Microsoft.Compute/virtualMachines/sku.name",
+                    "in": ["Standard_DS1_v2", "Standard_B1s", "Standard_B1ms"]
+                  },
+                  { "field": "name", "in": ["VM-1", "VM-2"] },
+                  { "field": "location", "In": ["eastus"] },
+                  { "field": "location", "notEquals": "global" }
+                ]
+              },
+              { "field": "type", "contains": "Microsoft.Network/" },
+              { "field": "type", "contains": "Microsoft.Compute/disks" },
+              { "field": "type", "contains": "Microsoft.Compute/virtualMachines/extensions" },
+              { "field": "type", "contains": "Microsoft.Storage/storageAccounts" }
+            ]
+          }
+        },
+        "then": { "effect": "deny" }
+      },
+      "structureNotes": "VM-focused whitelist with supporting resources (disks, extensions, network, storage). Note: inconsistent operator casing ('In' vs 'in') preserved from source.",
+      "applicableWhen": "The lab requires specific VMs with controlled names, sizes, and a single deployment region."
+    },
+    {
+      "id": "azure-limit-vm-sizes",
+      "title": "Limit to Specific VM Sizes",
+      "reusablePattern": "whitelist-sku",
+      "purpose": "Define one or more approved virtual machine sizes. Users will be unable to create any VMs outside of the defined sizes.",
+      "sourcePath": "access-control-policies/Azure/Limit to Specific VM Sizes/policy.json",
+      "sourceReadmePath": "access-control-policies/Azure/Limit to Specific VM Sizes/Readme.md",
+      "githubUrl": "https://github.com/LearnOnDemandSystems/labauthor/tree/master/access-control-policies/Azure/Limit%20to%20Specific%20VM%20Sizes",
+      "evidenceClassification": "A",
+      "servicesRepresented": ["compute"],
+      "resourceTypesRepresented": ["Microsoft.Compute/virtualMachines"],
+      "regionsOrLocationsMentioned": [],
+      "sizesOrSkusMentioned": ["Standard_A1"],
+      "wildcardUse": [],
+      "policyJson": {
+        "if": {
+          "allOf": [
+            { "field": "type", "equals": "Microsoft.Compute/virtualMachines" },
+            {
+              "not": {
+                "field": "Microsoft.Compute/virtualMachines/sku.name",
+                "in": ["Standard_A1"]
+              }
+            }
+          ]
+        },
+        "then": { "effect": "deny" }
+      },
+      "structureNotes": "Whitelist approach for VM sizes using nested 'not' with 'in'. Recommended over the blacklist approach.",
+      "applicableWhen": "The lab requires VMs but only of specific approved sizes."
+    },
+    {
+      "id": "azure-require-resource-name",
+      "title": "Require Specific Resource Name",
+      "reusablePattern": "require-naming-pattern",
+      "purpose": "Define one or more approved names for resources. Users will be unable to create VMs without a certain naming convention.",
+      "sourcePath": "access-control-policies/Azure/Require Specific Resource Name/policy.json",
+      "sourceReadmePath": "access-control-policies/Azure/Require Specific Resource Name/readme.md",
+      "githubUrl": "https://github.com/LearnOnDemandSystems/labauthor/tree/master/access-control-policies/Azure/Require%20Specific%20Resource%20Name",
+      "evidenceClassification": "A",
+      "servicesRepresented": ["compute"],
+      "resourceTypesRepresented": ["Microsoft.Compute/virtualMachines/osprofile.computername"],
+      "regionsOrLocationsMentioned": [],
+      "sizesOrSkusMentioned": [],
+      "wildcardUse": [],
+      "policyJson": {
+        "if": {
+          "allOf": [
+            {
+              "not": {
+                "field": "name",
+                "match": "RJGVM-###"
+              }
+            },
+            {
+              "field": "type",
+              "equals": "Microsoft.Compute/virtualMachines/osprofile.computername"
+            }
+          ]
+        },
+        "then": { "effect": "deny" }
+      },
+      "structureNotes": "Uses 'match' operator with pattern 'RJGVM-###' where # matches a digit. Targets VM computer name specifically.",
+      "applicableWhen": "The lab requires VMs to follow a specific naming convention."
+    },
+    {
+      "id": "azure-restrict-vmss",
+      "title": "Restrict resources to constrained VM scale sets",
+      "reusablePattern": "vmss-specific-whitelist",
+      "purpose": "Limit a lab deployment to only the resources necessary for a virtual machine scale set.",
+      "sourcePath": "access-control-policies/Azure/RestrictToVMScaleSets/policy.json",
+      "sourceReadmePath": "access-control-policies/Azure/RestrictToVMScaleSets/Readme.md",
+      "githubUrl": "https://github.com/LearnOnDemandSystems/labauthor/tree/master/access-control-policies/Azure/RestrictToVMScaleSets",
+      "evidenceClassification": "A",
+      "servicesRepresented": ["compute", "storage", "monitoring", "networking"],
+      "resourceTypesRepresented": [
+        "Microsoft.Compute/virtualMachineScaleSets",
+        "Microsoft.Storage/storageAccounts",
+        "microsoft.insights",
+        "Microsoft.Network"
+      ],
+      "regionsOrLocationsMentioned": [],
+      "sizesOrSkusMentioned": ["Standard_D1_v2"],
+      "wildcardUse": [],
+      "policyJson": {
+        "if": {
+          "not": {
+            "anyOf": [
+              {
+                "allOf": [
+                  { "field": "type", "equals": "Microsoft.Compute/virtualMachineScaleSets" },
+                  {
+                    "field": "Microsoft.Compute/virtualMachineScaleSets/virtualMachineProfile.osProfile.computerNamePrefix",
+                    "equals": "vmss"
+                  },
+                  {
+                    "field": "Microsoft.Compute/virtualMachineScaleSets/sku.name",
+                    "equals": "Standard_D1_v2"
+                  }
+                ]
+              },
+              { "field": "type", "contains": "Microsoft.Storage/storageAccounts" },
+              { "field": "type", "contains": "microsoft.insights" },
+              { "field": "type", "contains": "Microsoft.Network" }
+            ]
+          }
+        },
+        "then": { "effect": "deny" }
+      },
+      "structureNotes": "Scale set specific policy with computer name prefix restriction. Note: 'microsoft.insights' uses lowercase — inconsistent with other resource types, preserved from source.",
+      "applicableWhen": "The lab uses VM scale sets and needs to restrict to scale set supporting resources only."
+    }
+  ]
+}

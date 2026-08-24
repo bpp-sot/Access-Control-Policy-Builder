@@ -1,0 +1,118 @@
+{
+  "provider": "AWS",
+  "policyModel": "IAM Managed Identity-Based Policy",
+  "policyModelDescription": "Skillable AWS ACPs use IAM managed identity-based policies. These are JSON policies with Version '2012-10-17' and Statement arrays containing Action, Effect, Resource, and optional Condition elements. The model is allow-by-default: you explicitly Allow permitted actions and can add Deny statements for exceptions.",
+  "bestPractices": [
+    {
+      "practice": "Use Allow statements for permitted services, add Deny statements for exceptions",
+      "description": "AWS IAM policies are allow-by-default. Create Allow statements for the services the learner needs, then add specific Deny statements to block high-risk operations like creating unapproved instance types.",
+      "evidenceClassification": "A",
+      "sourcePath": "access-control-policies/AWS/Limit to Specific VM Sizes/readme.md"
+    },
+    {
+      "practice": "Restrict instance types using conditions",
+      "description": "Use the ec2:InstanceType condition key with StringNotEquals to deny RunInstances for any instance type not in the approved list.",
+      "evidenceClassification": "A",
+      "sourcePath": "access-control-policies/AWS/Limit to Specific VM Sizes/policy.json"
+    }
+  ],
+  "patterns": [
+    {
+      "id": "aws-allow-ec2-except-vms",
+      "title": "Allow EC2 Except VMs",
+      "reusablePattern": "allow-service-deny-instance",
+      "purpose": "Allow all EC2 actions but deny instance creation.",
+      "sourcePath": "access-control-policies/AWS/Allow EC2 Except VMs/policy.json",
+      "sourceReadmePath": null,
+      "githubUrl": "https://github.com/LearnOnDemandSystems/labauthor/tree/master/access-control-policies/AWS/Allow%20EC2%20Except%20VMs",
+      "evidenceClassification": "A",
+      "servicesRepresented": ["ec2"],
+      "resourceTypesRepresented": ["instance"],
+      "regionsOrLocationsMentioned": [],
+      "sizesOrSkusMentioned": [],
+      "wildcardUse": ["ec2:*", "*", "arn:aws:ec2:*:*:instance/*"],
+      "policyJson": {
+        "Version": "2012-10-17",
+        "Statement": [
+          {
+            "Action": "ec2:*",
+            "Resource": "*",
+            "Effect": "Allow"
+          },
+          {
+            "Action": "ec2:RunInstances",
+            "Resource": "arn:aws:ec2:*:*:instance/*",
+            "Effect": "Deny"
+          }
+        ]
+      },
+      "structureNotes": "No readme file present in source. Two-statement policy: broad Allow for EC2, then Deny for RunInstances on instance resources.",
+      "applicableWhen": "The lab requires EC2 management but no instance creation."
+    },
+    {
+      "id": "aws-allow-by-type-partial",
+      "title": "Allow Resources by Type (Partial Lockdown)",
+      "reusablePattern": "allow-services-whitelist",
+      "purpose": "Deploy an initial framework policy that allows specified services. Recommended to be used in conjunction with other policies when high-cost resources may be present.",
+      "sourcePath": "access-control-policies/AWS/Allow Resources by Type (Partial Lockdown)/policy.json",
+      "sourceReadmePath": "access-control-policies/AWS/Allow Resources by Type (Partial Lockdown)/readme.md",
+      "githubUrl": "https://github.com/LearnOnDemandSystems/labauthor/tree/master/access-control-policies/AWS/Allow%20Resources%20by%20Type%20(Partial%20Lockdown)",
+      "evidenceClassification": "A",
+      "servicesRepresented": ["ec2", "s3"],
+      "resourceTypesRepresented": ["*"],
+      "regionsOrLocationsMentioned": [],
+      "sizesOrSkusMentioned": [],
+      "wildcardUse": ["ec2:*", "s3:*", "*"],
+      "policyJson": {
+        "Version": "2012-10-17",
+        "Statement": [
+          {
+            "Sid": "Stmt1547479378374",
+            "Action": ["ec2:*", "s3:*"],
+            "Effect": "Allow",
+            "Resource": "*"
+          }
+        ]
+      },
+      "structureNotes": "Simple allow-only policy for EC2 and S3 using wildcard actions. Recommended to combine with VM size restriction policy.",
+      "applicableWhen": "The lab needs a baseline allowlist of permitted AWS services."
+    },
+    {
+      "id": "aws-limit-vm-sizes",
+      "title": "Limit to Specific VM Sizes",
+      "reusablePattern": "allow-ec2-deny-instance-type",
+      "purpose": "Define one or more approved virtual machine sizes. Users will be unable to create any VMs outside of the defined sizes.",
+      "sourcePath": "access-control-policies/AWS/Limit to Specific VM Sizes/policy.json",
+      "sourceReadmePath": "access-control-policies/AWS/Limit to Specific VM Sizes/readme.md",
+      "githubUrl": "https://github.com/LearnOnDemandSystems/labauthor/tree/master/access-control-policies/AWS/Limit%20to%20Specific%20VM%20Sizes",
+      "evidenceClassification": "A",
+      "servicesRepresented": ["ec2"],
+      "resourceTypesRepresented": ["instance"],
+      "regionsOrLocationsMentioned": [],
+      "sizesOrSkusMentioned": ["t2.micro"],
+      "wildcardUse": ["ec2:*", "*", "arn:aws:ec2:*:*:instance/*"],
+      "policyJson": {
+        "Version": "2012-10-17",
+        "Statement": [
+          {
+            "Action": "ec2:*",
+            "Resource": "*",
+            "Effect": "Allow"
+          },
+          {
+            "Action": "ec2:RunInstances",
+            "Resource": "arn:aws:ec2:*:*:instance/*",
+            "Effect": "Deny",
+            "Condition": {
+              "StringNotEquals": {
+                "ec2:InstanceType": ["t2.micro"]
+              }
+            }
+          }
+        ]
+      },
+      "structureNotes": "Two-statement policy: allow all EC2, then deny RunInstances for non-matching instance types using StringNotEquals condition on ec2:InstanceType.",
+      "applicableWhen": "The lab requires EC2 instances but only of specific approved instance types."
+    }
+  ]
+}

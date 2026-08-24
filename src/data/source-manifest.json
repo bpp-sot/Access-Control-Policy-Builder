@@ -1,0 +1,38 @@
+{
+  "sourceRepository": {
+    "name": "LearnOnDemandSystems/labauthor",
+    "url": "https://github.com/LearnOnDemandSystems/labauthor",
+    "cloneUrl": "https://github.com/LearnOnDemandSystems/labauthor.git",
+    "branch": "master",
+    "commitSha": "master-snapshot-2026-08-24",
+    "syncDate": "2026-08-24",
+    "licenseFound": false,
+    "licenseNote": "No LICENSE file found at repository root. The repository is public on GitHub. Attribution is preserved. Users should review the repository terms before redistributing raw policy JSON."
+  },
+  "azureExamplesImported": 10,
+  "awsExamplesImported": 3,
+  "totalExamplesImported": 13,
+  "filesParsedSuccessfully": 13,
+  "filesFailedToParse": [],
+  "manualMappings": [
+    {
+      "description": "Service catalogue categories (compute, storage, networking, etc.) were inferred from resource types present in official examples. No Skillable documentation defines a canonical category list.",
+      "evidenceClassification": "G",
+      "note": "Application safety / organisation aid — not a Skillable-defined taxonomy."
+    },
+    {
+      "description": "Human-friendly operation labels (View, List, Create, Configure, etc.) were mapped to provider-native actions based on standard Azure RBAC and AWS IAM action naming. No Skillable example demonstrates an operation-to-action mapping table.",
+      "evidenceClassification": "G",
+      "note": "Unverified — requires manual review against the target lab's actual requirements."
+    }
+  ],
+  "evidenceSources": {
+    "A": "Official Skillable sample (from LearnOnDemandSystems/labauthor)",
+    "B": "Official Skillable documentation (docs.skillable.com)",
+    "C": "Native Microsoft Azure documentation (docs.microsoft.com/azure)",
+    "D": "Native AWS documentation (docs.aws.amazon.com/IAM)",
+    "E": "Application safety constraint (added by this tool, not from Skillable)",
+    "F": "User-supplied custom rule",
+    "G": "Unverified or requires manual review"
+  }
+}
