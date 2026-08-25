@@ -112,4 +112,56 @@ describe('generateSecurityReview', () => {
     expect(review.summary).toContain('Overall Risk Assessment');
     expect(review.summary).toContain('suitable for submission');
   });
+
+  it('flags missing required VM dependencies as high severity', () => {
+    const vmService: ServiceSelection = {
+      serviceId: 'azure-compute-vm',
+      operations: ['create'],
+      customResourceTypes: [],
+      allowedSkus: ['Standard_B1s'],
+      allowedNames: ['VM-1'],
+    };
+    // VM selected without Networking — required dependency missing
+    const wizard = makeWizard({ provider: 'azure', services: [vmService] });
+    const policy = generatePolicy(wizard);
+    const review = generateSecurityReview(wizard, policy);
+
+    const depItem = review.items.find((i) => i.category === 'Missing Resource Dependencies');
+    expect(depItem).toBeDefined();
+    expect(depItem?.severity).toBe('high');
+    expect(depItem?.description).toContain('Networking');
+  });
+
+  it('does not flag missing dependencies when all required deps are selected', () => {
+    const vmService: ServiceSelection = {
+      serviceId: 'azure-compute-vm',
+      operations: ['create'],
+      customResourceTypes: [],
+      allowedSkus: ['Standard_B1s'],
+      allowedNames: ['VM-1'],
+    };
+    const networkingService: ServiceSelection = {
+      serviceId: 'azure-networking',
+      operations: ['create'],
+      customResourceTypes: [],
+      allowedSkus: [],
+      allowedNames: [],
+    };
+    const storageService: ServiceSelection = {
+      serviceId: 'azure-storage',
+      operations: ['create'],
+      customResourceTypes: [],
+      allowedSkus: [],
+      allowedNames: [],
+    };
+    const wizard = makeWizard({
+      provider: 'azure',
+      services: [vmService, networkingService, storageService],
+    });
+    const policy = generatePolicy(wizard);
+    const review = generateSecurityReview(wizard, policy);
+
+    const depItem = review.items.find((i) => i.category === 'Missing Resource Dependencies');
+    expect(depItem).toBeUndefined();
+  });
 });

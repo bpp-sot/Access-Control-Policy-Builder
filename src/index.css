@@ -405,6 +405,149 @@ a:hover {
   margin-top: 2px;
 }
 
+/* Dependency Panel */
+.dependency-panel {
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  background: var(--bg-secondary);
+  padding: 16px 20px;
+}
+
+.dependency-panel-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.dependency-panel-icon {
+  font-size: 1.5rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.dependency-panel-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.dependency-panel-subtitle {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  margin-top: 2px;
+  line-height: 1.4;
+}
+
+.dependency-group {
+  border-top: 1px solid var(--border-color);
+  padding-top: 12px;
+  margin-top: 12px;
+}
+
+.dependency-group:first-of-type {
+  border-top: none;
+  padding-top: 0;
+  margin-top: 0;
+}
+
+.dependency-group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+
+.dependency-list {
+  margin-bottom: 10px;
+}
+
+.dependency-list:last-child {
+  margin-bottom: 0;
+}
+
+.dependency-list-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 6px;
+}
+
+.dependency-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  margin-bottom: 6px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-primary);
+  transition: border-color 0.15s ease;
+}
+
+.dependency-item.included {
+  border-color: var(--accent-success);
+  background: rgba(63, 185, 80, 0.06);
+}
+
+.dependency-item.missing {
+  border-color: var(--accent-danger);
+  background: rgba(248, 81, 73, 0.05);
+}
+
+.dependency-item.optional {
+  border-color: var(--accent-warning);
+  background: rgba(255, 165, 0, 0.04);
+}
+
+.dependency-item-status {
+  font-size: 1.1rem;
+  line-height: 1.4;
+  flex-shrink: 0;
+}
+
+.dependency-item-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.dependency-item-name {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.dependency-item-types {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 400;
+  color: var(--text-muted);
+  background: var(--bg-secondary);
+  padding: 1px 6px;
+  border-radius: 4px;
+  word-break: break-all;
+}
+
+.dependency-item-reason {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  margin-top: 4px;
+  line-height: 1.45;
+}
+
+.dependency-item .btn-sm {
+  flex-shrink: 0;
+  align-self: center;
+}
+
 /* Badges */
 .badge {
   display: inline-flex;

@@ -207,6 +207,14 @@ export interface AwsPattern {
   applicableWhen: string;
 }
 
+export interface ServiceDependency {
+  serviceId: string;
+  serviceName: string;
+  resourceTypes: string[];
+  reason: string;
+  required: boolean;
+}
+
 export interface ServiceCatalogueEntry {
   id: string;
   name: string;
@@ -220,6 +228,7 @@ export interface ServiceCatalogueEntry {
   identitySensitivity: string;
   networkExposureSensitivity: string;
   notes: string;
+  dependencies?: ServiceDependency[];
 }
 
 export interface OperationDef {

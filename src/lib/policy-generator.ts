@@ -90,6 +90,39 @@ function generateAzurePolicy(wizard: WizardState): GeneratedPolicy {
     }
   }
 
+  // ── Dependency awareness ─────────────────────────────────────────────
+  // Check whether selected services with dependencies have their required
+  // supporting services also selected. Missing required dependencies will
+  // cause Azure deployment failures even though the primary resource type
+  // is permitted by the policy.
+  const selectedServiceIds = new Set(services.map((s) => s.serviceId));
+  for (const sel of services) {
+    const svc = findAzureService(sel.serviceId);
+    if (!svc?.dependencies) continue;
+
+    const missingRequired = svc.dependencies.filter(
+      (d) => d.required && !selectedServiceIds.has(d.serviceId),
+    );
+    const missingOptional = svc.dependencies.filter(
+      (d) => !d.required && !selectedServiceIds.has(d.serviceId),
+    );
+
+    for (const dep of missingRequired) {
+      warnings.push(
+        `${svc.name} requires ${dep.serviceName} (${dep.resourceTypes.join(', ')}) as a supporting resource, but it is not selected. Azure deployment will likely fail without it. ${dep.reason}`,
+      );
+      securityRisks.push(
+        `Missing required dependency: ${svc.name} needs ${dep.serviceName}. Deployment may fail.`,
+      );
+    }
+
+    for (const dep of missingOptional) {
+      warnings.push(
+        `${svc.name} may require ${dep.serviceName} (${dep.resourceTypes.join(', ')}) depending on your lab requirements. It is not currently selected. ${dep.reason}`,
+      );
+    }
+  }
+
   // Build the whitelist "anyOf" conditions
   const anyOfConditions: unknown[] = [];
 

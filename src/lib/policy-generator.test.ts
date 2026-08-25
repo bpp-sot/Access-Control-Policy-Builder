@@ -195,3 +195,142 @@ describe('generatePolicy — AWS', () => {
     expect(json.Statement.some((s) => s.Effect === 'Deny' && s.Action === '*')).toBe(true);
   });
 });
+
+describe('generatePolicy — Azure VM dependency awareness', () => {
+  it('warns when VMs are selected without required networking dependency', () => {
+    const vmService: ServiceSelection = {
+      serviceId: 'azure-compute-vm',
+      operations: ['create', 'start', 'stop', 'delete'],
+      customResourceTypes: [],
+      allowedSkus: ['Standard_B1s'],
+      allowedNames: ['VM-1'],
+    };
+    // VM selected, but Networking is NOT selected
+    const wizard = makeWizard({ provider: 'azure', services: [vmService] });
+    const policy = generatePolicy(wizard);
+
+    // Should warn about missing required dependency
+    expect(
+      policy.warnings.some((w) => w.includes('Virtual Machines') && w.includes('Networking')),
+    ).toBe(true);
+    // Should flag as a security risk (deployment may fail)
+    expect(policy.securityRisks.some((r) => r.includes('Missing required dependency'))).toBe(true);
+  });
+
+  it('does not warn about required dependencies when networking is also selected', () => {
+    const vmService: ServiceSelection = {
+      serviceId: 'azure-compute-vm',
+      operations: ['create'],
+      customResourceTypes: [],
+      allowedSkus: ['Standard_B1s'],
+      allowedNames: ['VM-1'],
+    };
+    const networkingService: ServiceSelection = {
+      serviceId: 'azure-networking',
+      operations: ['create'],
+      customResourceTypes: [],
+      allowedSkus: [],
+      allowedNames: [],
+    };
+    const wizard = makeWizard({
+      provider: 'azure',
+      services: [vmService, networkingService],
+    });
+    const policy = generatePolicy(wizard);
+
+    // Should NOT warn about missing required Networking dependency
+    expect(
+      policy.warnings.some(
+        (w) => w.includes('Virtual Machines') && w.includes('requires') && w.includes('Networking'),
+      ),
+    ).toBe(false);
+    expect(policy.securityRisks.some((r) => r.includes('Missing required dependency'))).toBe(false);
+  });
+
+  it('warns about optional dependencies (storage, public IP) when not selected', () => {
+    const vmService: ServiceSelection = {
+      serviceId: 'azure-compute-vm',
+      operations: ['create'],
+      customResourceTypes: [],
+      allowedSkus: ['Standard_B1s'],
+      allowedNames: ['VM-1'],
+    };
+    const networkingService: ServiceSelection = {
+      serviceId: 'azure-networking',
+      operations: ['create'],
+      customResourceTypes: [],
+      allowedSkus: [],
+      allowedNames: [],
+    };
+    // VM + Networking selected, but Storage (optional dep) is NOT
+    const wizard = makeWizard({
+      provider: 'azure',
+      services: [vmService, networkingService],
+    });
+    const policy = generatePolicy(wizard);
+
+    // Should warn about optional Storage Accounts dependency
+    expect(policy.warnings.some((w) => w.includes('Storage Accounts'))).toBe(true);
+    // But should NOT flag it as a security risk (it is optional)
+    const storageRisk = policy.securityRisks.find((r) => r.includes('Storage Accounts'));
+    expect(storageRisk).toBeUndefined();
+  });
+
+  it('warns when VMSS is selected without required networking and storage dependencies', () => {
+    const vmssService: ServiceSelection = {
+      serviceId: 'azure-compute-vmss',
+      operations: ['create'],
+      customResourceTypes: [],
+      allowedSkus: ['Standard_B1s'],
+      allowedNames: [],
+      maxCapacity: 5,
+    };
+    const wizard = makeWizard({ provider: 'azure', services: [vmssService] });
+    const policy = generatePolicy(wizard);
+
+    // VMSS requires both Networking and Storage
+    expect(
+      policy.warnings.some(
+        (w) => w.includes('Virtual Machine Scale Sets') && w.includes('Networking'),
+      ),
+    ).toBe(true);
+    expect(
+      policy.warnings.some(
+        (w) => w.includes('Virtual Machine Scale Sets') && w.includes('Storage'),
+      ),
+    ).toBe(true);
+    expect(policy.securityRisks.some((r) => r.includes('Missing required dependency'))).toBe(true);
+  });
+
+  it('does not produce dependency warnings when all required deps are included', () => {
+    const vmService: ServiceSelection = {
+      serviceId: 'azure-compute-vm',
+      operations: ['create'],
+      customResourceTypes: [],
+      allowedSkus: ['Standard_B1s'],
+      allowedNames: ['VM-1'],
+    };
+    const networkingService: ServiceSelection = {
+      serviceId: 'azure-networking',
+      operations: ['create'],
+      customResourceTypes: [],
+      allowedSkus: [],
+      allowedNames: [],
+    };
+    const storageService: ServiceSelection = {
+      serviceId: 'azure-storage',
+      operations: ['create'],
+      customResourceTypes: [],
+      allowedSkus: [],
+      allowedNames: [],
+    };
+    const wizard = makeWizard({
+      provider: 'azure',
+      services: [vmService, networkingService, storageService],
+    });
+    const policy = generatePolicy(wizard);
+
+    // No required-dependency warnings
+    expect(policy.securityRisks.some((r) => r.includes('Missing required dependency'))).toBe(false);
+  });
+});

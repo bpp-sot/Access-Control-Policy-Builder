@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useWizard } from '@/lib/wizard-context';
 import { detectSecrets } from '@/lib/secret-detector';
-import type { LearningOutcome, LearnerTask, ServiceSelection } from '@/types';
+import type { LearningOutcome, LearnerTask, ServiceSelection, ServiceDependency } from '@/types';
 import serviceCatalogue from '@data/service-catalogue.json';
 import regionsSkus from '@data/regions-skus.json';
 import type { ServiceCatalogueEntry, OperationDef } from '@/types';
@@ -730,6 +730,96 @@ export function Step6Services() {
 
   const isSelected = (serviceId: string) => wizard.services.some((s) => s.serviceId === serviceId);
 
+  // ── Dependency awareness ──────────────────────────────────────────────
+  // Collect all dependencies from selected services that have them.
+  // Each dependency points to a serviceId that should also be selected.
+  const selectedWithDeps = wizard.services
+    .map((sel) => {
+      const svc = services.find((s) => s.id === sel.serviceId);
+      return svc?.dependencies ? { service: svc, deps: svc.dependencies } : null;
+    })
+    .filter((x): x is { service: ServiceCatalogueEntry; deps: ServiceDependency[] } => x !== null);
+
+  // Check which required dependencies are missing (service not selected)
+  const missingRequiredDeps = selectedWithDeps.flatMap(({ service, deps }) =>
+    deps
+      .filter((d) => d.required && !isSelected(d.serviceId))
+      .map((d) => ({ ...d, parentServiceName: service.name })),
+  );
+
+  // Check which optional dependencies are missing
+  const missingOptionalDeps = selectedWithDeps.flatMap(({ service, deps }) =>
+    deps
+      .filter((d) => !d.required && !isSelected(d.serviceId))
+      .map((d) => ({ ...d, parentServiceName: service.name })),
+  );
+
+  // Group dependencies by parent service for display
+  const depsByParent = new Map<string, { parent: string; deps: ServiceDependency[] }>();
+  for (const { service, deps } of selectedWithDeps) {
+    const key = service.id;
+    if (!depsByParent.has(key)) {
+      depsByParent.set(key, { parent: service.name, deps });
+    }
+  }
+
+  // Auto-include a single dependency service
+  const addDependency = (dep: ServiceDependency) => {
+    setWizard((prev) => {
+      if (prev.services.some((s) => s.serviceId === dep.serviceId)) return prev;
+      const newSel: ServiceSelection = {
+        serviceId: dep.serviceId,
+        operations: [],
+        customResourceTypes: [],
+        allowedSkus: [],
+        allowedNames: [],
+      };
+      return { ...prev, services: [...prev.services, newSel] };
+    });
+  };
+
+  // Auto-include all required dependencies for a parent service
+  const addAllRequired = (parentId: string) => {
+    const entry = depsByParent.get(parentId);
+    if (!entry) return;
+    setWizard((prev) => {
+      const existing = new Set(prev.services.map((s) => s.serviceId));
+      const toAdd = entry.deps
+        .filter((d) => d.required && !existing.has(d.serviceId))
+        .map((d): ServiceSelection => ({
+          serviceId: d.serviceId,
+          operations: [],
+          customResourceTypes: [],
+          allowedSkus: [],
+          allowedNames: [],
+        }));
+      if (toAdd.length === 0) return prev;
+      return { ...prev, services: [...prev.services, ...toAdd] };
+    });
+  };
+
+  // Auto-include all dependencies (required + optional) for a parent service
+  const addAllDependencies = (parentId: string) => {
+    const entry = depsByParent.get(parentId);
+    if (!entry) return;
+    setWizard((prev) => {
+      const existing = new Set(prev.services.map((s) => s.serviceId));
+      const toAdd = entry.deps
+        .filter((d) => !existing.has(d.serviceId))
+        .map((d): ServiceSelection => ({
+          serviceId: d.serviceId,
+          operations: [],
+          customResourceTypes: [],
+          allowedSkus: [],
+          allowedNames: [],
+        }));
+      if (toAdd.length === 0) return prev;
+      return { ...prev, services: [...prev.services, ...toAdd] };
+    });
+  };
+
+  const hasDependencyPanel = depsByParent.size > 0;
+
   return (
     <div>
       <div className="card">
@@ -738,6 +828,154 @@ export function Step6Services() {
           Choose the cloud services required by your lab. Each service shows whether an official
           Skillable sample is available and its risk profile.
         </p>
+
+        {/* ── Dependency Panel ─────────────────────────────────────────── */}
+        {hasDependencyPanel && (
+          <div className="dependency-panel mb-4">
+            <div className="dependency-panel-header">
+              <span className="dependency-panel-icon">{'\u{1F9E9}'}</span>
+              <div>
+                <div className="dependency-panel-title">Resource Dependencies Detected</div>
+                <div className="dependency-panel-subtitle">
+                  Some selected services require supporting Azure resources for successful
+                  deployment. These are based on resources included in official Skillable samples.
+                </div>
+              </div>
+            </div>
+
+            {Array.from(depsByParent.entries()).map(([parentId, { parent, deps }]) => {
+              const requiredDeps = deps.filter((d) => d.required);
+              const optionalDeps = deps.filter((d) => !d.required);
+              const allIncluded = deps.every((d) => isSelected(d.serviceId));
+              const requiredIncluded = requiredDeps.every((d) => isSelected(d.serviceId));
+
+              return (
+                <div key={parentId} className="dependency-group">
+                  <div className="dependency-group-header">
+                    <span className="font-semibold text-sm">{parent}</span>
+                    {!allIncluded && (
+                      <div className="flex gap-2">
+                        {!requiredIncluded && (
+                          <button
+                            className="btn btn-primary btn-sm"
+                            onClick={() => addAllRequired(parentId)}
+                          >
+                            Include required
+                          </button>
+                        )}
+                        <button
+                          className="btn btn-secondary btn-sm"
+                          onClick={() => addAllDependencies(parentId)}
+                        >
+                          Include all
+                        </button>
+                      </div>
+                    )}
+                    {allIncluded && (
+                      <span className="badge badge-success">
+                        {'\u2713'} All dependencies included
+                      </span>
+                    )}
+                  </div>
+
+                  {requiredDeps.length > 0 && (
+                    <div className="dependency-list">
+                      <div className="dependency-list-label">Required for deployment:</div>
+                      {requiredDeps.map((dep, idx) => {
+                        const included = isSelected(dep.serviceId);
+                        return (
+                          <div
+                            key={`${dep.serviceId}-${idx}`}
+                            className={`dependency-item ${included ? 'included' : 'missing'}`}
+                          >
+                            <div className="dependency-item-status">
+                              {included ? '\u2705' : '\u274C'}
+                            </div>
+                            <div className="dependency-item-content">
+                              <div className="dependency-item-name">
+                                {dep.serviceName}
+                                <span className="dependency-item-types">
+                                  {dep.resourceTypes.join(', ')}
+                                </span>
+                              </div>
+                              <div className="dependency-item-reason">{dep.reason}</div>
+                            </div>
+                            {!included && (
+                              <button
+                                className="btn btn-secondary btn-sm"
+                                onClick={() => addDependency(dep)}
+                              >
+                                Add
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {optionalDeps.length > 0 && (
+                    <div className="dependency-list">
+                      <div className="dependency-list-label">Recommended (optional):</div>
+                      {optionalDeps.map((dep, idx) => {
+                        const included = isSelected(dep.serviceId);
+                        return (
+                          <div
+                            key={`${dep.serviceId}-${idx}`}
+                            className={`dependency-item ${included ? 'included' : 'optional'}`}
+                          >
+                            <div className="dependency-item-status">
+                              {included ? '\u2705' : '\u2B55'}
+                            </div>
+                            <div className="dependency-item-content">
+                              <div className="dependency-item-name">
+                                {dep.serviceName}
+                                <span className="dependency-item-types">
+                                  {dep.resourceTypes.join(', ')}
+                                </span>
+                              </div>
+                              <div className="dependency-item-reason">{dep.reason}</div>
+                            </div>
+                            {!included && (
+                              <button
+                                className="btn btn-secondary btn-sm"
+                                onClick={() => addDependency(dep)}
+                              >
+                                Add
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+
+            {missingRequiredDeps.length > 0 && (
+              <div className="alert alert-danger mt-3">
+                <span>{'\u{26A0}'}</span>
+                <div>
+                  <strong>Deployment will likely fail.</strong> {missingRequiredDeps.length}{' '}
+                  required supporting resource(s) are not selected. Without them, Azure may block VM
+                  creation even though the VM resource type itself is permitted.
+                </div>
+              </div>
+            )}
+
+            {missingRequiredDeps.length === 0 && missingOptionalDeps.length > 0 && (
+              <div className="alert alert-warning mt-3">
+                <span>{'\u{26A0}'}</span>
+                <div>
+                  {missingOptionalDeps.length} optional supporting resource(s) are not selected.
+                  These may be needed depending on your lab requirements (e.g. public IP for
+                  internet access, storage for boot diagnostics).
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="form-grid-2 mb-4">
           <input

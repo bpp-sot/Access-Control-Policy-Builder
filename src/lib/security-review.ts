@@ -1,5 +1,15 @@
-import type { GeneratedPolicy, SecurityReview, SecurityReviewItem, WizardState } from '@/types';
+import type {
+  GeneratedPolicy,
+  SecurityReview,
+  SecurityReviewItem,
+  ServiceCatalogueEntry,
+  WizardState,
+} from '@/types';
 import sourceManifest from '@data/source-manifest.json';
+import serviceCatalogue from '@data/service-catalogue.json';
+
+const azureServices = serviceCatalogue.azureServices as ServiceCatalogueEntry[];
+const awsServices = serviceCatalogue.awsServices as ServiceCatalogueEntry[];
 
 export function generateSecurityReview(
   wizard: WizardState,
@@ -93,6 +103,32 @@ export function generateSecurityReview(
           'Add specific allowed VM names to limit the number of VMs that can be created. This is the most secure option per Skillable best practices.',
       });
     }
+  }
+
+  // Dependency awareness — check for missing required supporting services
+  // This is especially important for Azure VMs, which require networking and
+  // storage resources that, if blocked by the ACP, cause deployment failures.
+  const selectedServiceIds = new Set(wizard.services.map((s) => s.serviceId));
+  const allServices =
+    wizard.provider === 'azure' ? azureServices : wizard.provider === 'aws' ? awsServices : [];
+  const missingDeps: Array<{ parent: string; dep: string; types: string[] }> = [];
+  for (const sel of wizard.services) {
+    const svc = allServices.find((s) => s.id === sel.serviceId);
+    if (!svc?.dependencies) continue;
+    for (const dep of svc.dependencies) {
+      if (dep.required && !selectedServiceIds.has(dep.serviceId)) {
+        missingDeps.push({ parent: svc.name, dep: dep.serviceName, types: dep.resourceTypes });
+      }
+    }
+  }
+  if (missingDeps.length > 0) {
+    items.push({
+      severity: 'high',
+      category: 'Missing Resource Dependencies',
+      description: `${missingDeps.length} required supporting resource(s) are not selected: ${missingDeps.map((d) => `${d.parent} → ${d.dep} (${d.types.join(', ')})`).join('; ')}. Azure deployment will likely fail because the policy will block creation of these supporting resources even though the primary resource type is permitted.`,
+      recommendation:
+        'Return to the Services step and include the required supporting services, or use the "Include required" button in the dependency panel. This is the most common cause of VM deployment failures under Access Control Policies.',
+    });
   }
 
   // Background deployment

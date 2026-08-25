@@ -40,7 +40,34 @@
       "costSensitivity": "High",
       "identitySensitivity": "Medium",
       "networkExposureSensitivity": "Medium",
-      "notes": "VMs are the most abused resource by malicious users (e.g. bitcoin miners). Limit by SKU, Region, and Name for maximum security."
+      "notes": "VMs are the most abused resource by malicious users (e.g. bitcoin miners). Limit by SKU, Region, and Name for maximum security.",
+      "dependencies": [
+        {
+          "serviceId": "azure-networking",
+          "serviceName": "Networking",
+          "resourceTypes": [
+            "Microsoft.Network/virtualNetworks",
+            "Microsoft.Network/networkInterfaces",
+            "Microsoft.Network/networkSecurityGroups"
+          ],
+          "reason": "Azure VMs require a network interface (NIC), which in turn requires a virtual network (VNet) and typically a network security group (NSG). Without these, VM deployment will fail. All official Skillable VM samples include Microsoft.Network resources as supporting infrastructure.",
+          "required": true
+        },
+        {
+          "serviceId": "azure-networking",
+          "serviceName": "Networking (Public IP)",
+          "resourceTypes": ["Microsoft.Network/publicIPAddresses"],
+          "reason": "Public IP addresses are required if the VM needs to be accessible from the internet. Included in official samples like 'Block Resources by Type (Partial Lockdown)'. Only needed if the lab requires public connectivity.",
+          "required": false
+        },
+        {
+          "serviceId": "azure-storage",
+          "serviceName": "Storage Accounts",
+          "resourceTypes": ["Microsoft.Storage/storageAccounts"],
+          "reason": "Storage accounts are required for VM diagnostic logs and boot diagnostics. Included as a supporting resource in official samples like 'Limit VM by Name, Size, and Location' and 'Restrict to VM Scale Sets'.",
+          "required": false
+        }
+      ]
     },
     {
       "id": "azure-compute-vmss",
@@ -53,7 +80,34 @@
       "costSensitivity": "High",
       "identitySensitivity": "Medium",
       "networkExposureSensitivity": "Medium",
-      "notes": "Scale sets can scale automatically. Consider limiting sku.capacity to prevent runaway costs."
+      "notes": "Scale sets can scale automatically. Consider limiting sku.capacity to prevent runaway costs.",
+      "dependencies": [
+        {
+          "serviceId": "azure-networking",
+          "serviceName": "Networking",
+          "resourceTypes": [
+            "Microsoft.Network/virtualNetworks",
+            "Microsoft.Network/networkInterfaces",
+            "Microsoft.Network/networkSecurityGroups"
+          ],
+          "reason": "VM scale sets require a virtual network, network interfaces, and typically a network security group. The official 'Restrict to VM Scale Sets' sample includes Microsoft.Network resources as supporting infrastructure.",
+          "required": true
+        },
+        {
+          "serviceId": "azure-storage",
+          "serviceName": "Storage Accounts",
+          "resourceTypes": ["Microsoft.Storage/storageAccounts"],
+          "reason": "Storage accounts are required for VMSS boot diagnostics and are included in the official 'Restrict to VM Scale Sets' sample.",
+          "required": true
+        },
+        {
+          "serviceId": "azure-monitoring",
+          "serviceName": "Monitoring and Insights",
+          "resourceTypes": ["Microsoft.Insights/autoscalesettings"],
+          "reason": "Autoscale settings are typically configured with VM scale sets. Included in the official 'Limit VM & VM Scale Sets by Name, SKU, Region, and Capacity' sample.",
+          "required": false
+        }
+      ]
     },
     {
       "id": "azure-networking",
