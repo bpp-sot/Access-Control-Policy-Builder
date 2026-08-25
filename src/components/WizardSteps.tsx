@@ -732,58 +732,99 @@ export function Step6Services() {
 
   // ── Dependency awareness ──────────────────────────────────────────────
   // Collect all dependencies from selected services that have them.
-  // Each dependency points to a serviceId that should also be selected,
-  // unless autoIncluded is true (meaning the resource type is already
-  // part of the parent service's own resourceTypes and is automatically
-  // whitelisted by the policy generator).
+  // Each dependency either:
+  //  - points to a different service that should be selected, OR
+  //  - is autoIncluded (handled by the generator automatically), OR
+  //  - points to the same service and is opted in via customResourceTypes
   const selectedWithDeps = wizard.services
     .map((sel) => {
       const svc = services.find((s) => s.id === sel.serviceId);
-      return svc?.dependencies ? { service: svc, deps: svc.dependencies } : null;
+      return svc?.dependencies ? { service: svc, deps: svc.dependencies, selection: sel } : null;
     })
-    .filter((x): x is { service: ServiceCatalogueEntry; deps: ServiceDependency[] } => x !== null);
+    .filter(
+      (
+        x,
+      ): x is {
+        service: ServiceCatalogueEntry;
+        deps: ServiceDependency[];
+        selection: ServiceSelection;
+      } => x !== null,
+    );
 
   // A dependency is "satisfied" if:
   //  - it is autoIncluded (handled by the generator), OR
-  //  - the target serviceId is selected
-  const isDepSatisfied = (dep: ServiceDependency) => dep.autoIncluded || isSelected(dep.serviceId);
+  //  - it points to a different service and that service is selected, OR
+  //  - it points to the same service and its resource types are in customResourceTypes
+  const isDepSatisfied = (dep: ServiceDependency, parentServiceId: string): boolean => {
+    if (dep.autoIncluded) return true;
+    if (dep.serviceId !== parentServiceId) return isSelected(dep.serviceId);
+    // Same service — check if resource types are opted in via customResourceTypes
+    const parentSel = wizard.services.find((s) => s.serviceId === parentServiceId);
+    if (!parentSel) return false;
+    return dep.resourceTypes.every((rt) => parentSel.customResourceTypes.includes(rt));
+  };
 
-  // Check which required dependencies are missing (service not selected and not auto-included)
+  // Check which required dependencies are missing
   const missingRequiredDeps = selectedWithDeps.flatMap(({ service, deps }) =>
     deps
-      .filter((d) => d.required && !isDepSatisfied(d))
+      .filter((d) => d.required && !isDepSatisfied(d, service.id))
       .map((d) => ({ ...d, parentServiceName: service.name })),
   );
 
   // Check which optional dependencies are missing
   const missingOptionalDeps = selectedWithDeps.flatMap(({ service, deps }) =>
     deps
-      .filter((d) => !d.required && !isDepSatisfied(d))
+      .filter((d) => !d.required && !isDepSatisfied(d, service.id))
       .map((d) => ({ ...d, parentServiceName: service.name })),
   );
 
   // Group dependencies by parent service for display
-  const depsByParent = new Map<string, { parent: string; deps: ServiceDependency[] }>();
+  const depsByParent = new Map<
+    string,
+    { parent: string; deps: ServiceDependency[]; parentId: string }
+  >();
   for (const { service, deps } of selectedWithDeps) {
     const key = service.id;
     if (!depsByParent.has(key)) {
-      depsByParent.set(key, { parent: service.name, deps });
+      depsByParent.set(key, { parent: service.name, deps, parentId: service.id });
     }
   }
 
-  // Auto-include a single dependency service
-  const addDependency = (dep: ServiceDependency) => {
-    setWizard((prev) => {
-      if (prev.services.some((s) => s.serviceId === dep.serviceId)) return prev;
-      const newSel: ServiceSelection = {
-        serviceId: dep.serviceId,
-        operations: [],
-        customResourceTypes: [],
-        allowedSkus: [],
-        allowedNames: [],
-      };
-      return { ...prev, services: [...prev.services, newSel] };
-    });
+  // Add a single dependency. For same-service deps (e.g. extensions), this
+  // adds the resource types to the parent's customResourceTypes. For different
+  // services, it adds a new service selection.
+  const addDependency = (dep: ServiceDependency, parentServiceId: string) => {
+    if (dep.autoIncluded) return;
+    if (dep.serviceId === parentServiceId) {
+      // Same service — add resource types to customResourceTypes
+      setWizard((prev) => ({
+        ...prev,
+        services: prev.services.map((s) =>
+          s.serviceId === parentServiceId
+            ? {
+                ...s,
+                customResourceTypes: [
+                  ...s.customResourceTypes,
+                  ...dep.resourceTypes.filter((rt) => !s.customResourceTypes.includes(rt)),
+                ],
+              }
+            : s,
+        ),
+      }));
+    } else {
+      // Different service — add a new service selection
+      setWizard((prev) => {
+        if (prev.services.some((s) => s.serviceId === dep.serviceId)) return prev;
+        const newSel: ServiceSelection = {
+          serviceId: dep.serviceId,
+          operations: [],
+          customResourceTypes: [],
+          allowedSkus: [],
+          allowedNames: [],
+        };
+        return { ...prev, services: [...prev.services, newSel] };
+      });
+    }
   };
 
   // Auto-include all required dependencies for a parent service
@@ -792,17 +833,53 @@ export function Step6Services() {
     if (!entry) return;
     setWizard((prev) => {
       const existing = new Set(prev.services.map((s) => s.serviceId));
-      const toAdd = entry.deps
-        .filter((d) => d.required && !existing.has(d.serviceId))
-        .map((d): ServiceSelection => ({
-          serviceId: d.serviceId,
-          operations: [],
-          customResourceTypes: [],
-          allowedSkus: [],
-          allowedNames: [],
-        }));
-      if (toAdd.length === 0) return prev;
-      return { ...prev, services: [...prev.services, ...toAdd] };
+      const newServices: ServiceSelection[] = [];
+      const customTypeUpdates = new Map<string, string[]>();
+
+      for (const d of entry.deps) {
+        if (!d.required || d.autoIncluded) continue;
+        if (d.serviceId === parentId) {
+          // Same service — collect resource types for customResourceTypes
+          const sel = prev.services.find((s) => s.serviceId === parentId);
+          if (sel) {
+            const newTypes = d.resourceTypes.filter((rt) => !sel.customResourceTypes.includes(rt));
+            if (newTypes.length > 0) {
+              customTypeUpdates.set(parentId, [
+                ...(customTypeUpdates.get(parentId) ?? []),
+                ...newTypes,
+              ]);
+            }
+          }
+        } else if (!existing.has(d.serviceId)) {
+          newServices.push({
+            serviceId: d.serviceId,
+            operations: [],
+            customResourceTypes: [],
+            allowedSkus: [],
+            allowedNames: [],
+          });
+          existing.add(d.serviceId);
+        }
+      }
+
+      if (newServices.length === 0 && customTypeUpdates.size === 0) return prev;
+      return {
+        ...prev,
+        services: [
+          ...prev.services.map((s) =>
+            customTypeUpdates.has(s.serviceId)
+              ? {
+                  ...s,
+                  customResourceTypes: [
+                    ...s.customResourceTypes,
+                    ...(customTypeUpdates.get(s.serviceId) ?? []),
+                  ],
+                }
+              : s,
+          ),
+          ...newServices,
+        ],
+      };
     });
   };
 
@@ -812,17 +889,52 @@ export function Step6Services() {
     if (!entry) return;
     setWizard((prev) => {
       const existing = new Set(prev.services.map((s) => s.serviceId));
-      const toAdd = entry.deps
-        .filter((d) => !existing.has(d.serviceId))
-        .map((d): ServiceSelection => ({
-          serviceId: d.serviceId,
-          operations: [],
-          customResourceTypes: [],
-          allowedSkus: [],
-          allowedNames: [],
-        }));
-      if (toAdd.length === 0) return prev;
-      return { ...prev, services: [...prev.services, ...toAdd] };
+      const newServices: ServiceSelection[] = [];
+      const customTypeUpdates = new Map<string, string[]>();
+
+      for (const d of entry.deps) {
+        if (d.autoIncluded) continue;
+        if (d.serviceId === parentId) {
+          const sel = prev.services.find((s) => s.serviceId === parentId);
+          if (sel) {
+            const newTypes = d.resourceTypes.filter((rt) => !sel.customResourceTypes.includes(rt));
+            if (newTypes.length > 0) {
+              customTypeUpdates.set(parentId, [
+                ...(customTypeUpdates.get(parentId) ?? []),
+                ...newTypes,
+              ]);
+            }
+          }
+        } else if (!existing.has(d.serviceId)) {
+          newServices.push({
+            serviceId: d.serviceId,
+            operations: [],
+            customResourceTypes: [],
+            allowedSkus: [],
+            allowedNames: [],
+          });
+          existing.add(d.serviceId);
+        }
+      }
+
+      if (newServices.length === 0 && customTypeUpdates.size === 0) return prev;
+      return {
+        ...prev,
+        services: [
+          ...prev.services.map((s) =>
+            customTypeUpdates.has(s.serviceId)
+              ? {
+                  ...s,
+                  customResourceTypes: [
+                    ...s.customResourceTypes,
+                    ...(customTypeUpdates.get(s.serviceId) ?? []),
+                  ],
+                }
+              : s,
+          ),
+          ...newServices,
+        ],
+      };
     });
   };
 
@@ -854,8 +966,8 @@ export function Step6Services() {
             {Array.from(depsByParent.entries()).map(([parentId, { parent, deps }]) => {
               const requiredDeps = deps.filter((d) => d.required);
               const optionalDeps = deps.filter((d) => !d.required);
-              const allIncluded = deps.every((d) => isDepSatisfied(d));
-              const requiredIncluded = requiredDeps.every((d) => isDepSatisfied(d));
+              const allIncluded = deps.every((d) => isDepSatisfied(d, parentId));
+              const requiredIncluded = requiredDeps.every((d) => isDepSatisfied(d, parentId));
 
               return (
                 <div key={parentId} className="dependency-group">
@@ -890,7 +1002,7 @@ export function Step6Services() {
                     <div className="dependency-list">
                       <div className="dependency-list-label">Required for deployment:</div>
                       {requiredDeps.map((dep, idx) => {
-                        const included = isDepSatisfied(dep);
+                        const included = isDepSatisfied(dep, parentId);
                         const autoIncluded = dep.autoIncluded === true;
                         const evidenceClass = dep.evidenceClassification ?? 'A';
                         return (
@@ -921,7 +1033,7 @@ export function Step6Services() {
                             {!included && !autoIncluded && (
                               <button
                                 className="btn btn-secondary btn-sm"
-                                onClick={() => addDependency(dep)}
+                                onClick={() => addDependency(dep, parentId)}
                               >
                                 Add
                               </button>
@@ -936,7 +1048,7 @@ export function Step6Services() {
                     <div className="dependency-list">
                       <div className="dependency-list-label">Recommended (optional):</div>
                       {optionalDeps.map((dep, idx) => {
-                        const included = isDepSatisfied(dep);
+                        const included = isDepSatisfied(dep, parentId);
                         const autoIncluded = dep.autoIncluded === true;
                         const evidenceClass = dep.evidenceClassification ?? 'A';
                         return (
@@ -967,7 +1079,7 @@ export function Step6Services() {
                             {!included && !autoIncluded && (
                               <button
                                 className="btn btn-secondary btn-sm"
-                                onClick={() => addDependency(dep)}
+                                onClick={() => addDependency(dep, parentId)}
                               >
                                 Add
                               </button>

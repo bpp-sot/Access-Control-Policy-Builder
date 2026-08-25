@@ -75,7 +75,7 @@ describe('generatePolicy — Azure', () => {
     const wizard = makeWizard({ provider: 'azure', services: [vmService] });
     const policy = generatePolicy(wizard);
 
-    // The generated policy JSON must include a contains condition for
+    // The generated policy JSON must include an equals condition for
     // Microsoft.Compute/disks in the anyOf whitelist.
     const json = policy.policyJson as {
       if: { not: { anyOf: Array<Record<string, unknown>> } };
@@ -89,6 +89,135 @@ describe('generatePolicy — Azure', () => {
     expect(diskStmt?.plainEnglish).toContain('Microsoft.Compute/disks');
     // Should be Classification C (native Azure documentation), not A
     expect(diskStmt?.evidence.classification).toBe('C');
+  });
+
+  it('uses equals (not contains) for managed disks to avoid substring over-admission', () => {
+    // Remark 4: "contains" is a substring match that can unintentionally
+    // admit child resource types. The VM supporting types should use
+    // "equals" for precise type matching.
+    const vmService: ServiceSelection = {
+      serviceId: 'azure-compute-vm',
+      operations: ['create'],
+      customResourceTypes: [],
+      allowedSkus: ['Standard_B1s'],
+      allowedNames: ['VM-1'],
+    };
+    const wizard = makeWizard({ provider: 'azure', services: [vmService] });
+    const policy = generatePolicy(wizard);
+
+    const json = policy.policyJson as {
+      if: { not: { anyOf: Array<Record<string, unknown>> } };
+    };
+
+    // Find the anyOf entry for Microsoft.Compute/disks
+    const diskEntry = json.if.not.anyOf.find((entry) => entry.equals === 'Microsoft.Compute/disks');
+    expect(diskEntry).toBeDefined();
+    expect(diskEntry?.equals).toBe('Microsoft.Compute/disks');
+    // Should NOT use contains for disks
+    const containsDiskEntry = json.if.not.anyOf.find(
+      (entry) => entry.contains === 'Microsoft.Compute/disks',
+    );
+    expect(containsDiskEntry).toBeUndefined();
+  });
+
+  it('does NOT whitelist VM extensions by default (opt-in only)', () => {
+    // Remark 2: VM extensions are not required for basic VM deployment.
+    // They should NOT be auto-whitelisted — only included when the user
+    // explicitly opts in via customResourceTypes.
+    const vmService: ServiceSelection = {
+      serviceId: 'azure-compute-vm',
+      operations: ['create'],
+      customResourceTypes: [], // no extensions opted in
+      allowedSkus: ['Standard_B1s'],
+      allowedNames: ['VM-1'],
+    };
+    const wizard = makeWizard({ provider: 'azure', services: [vmService] });
+    const policy = generatePolicy(wizard);
+
+    const json = policy.policyJson as {
+      if: { not: { anyOf: Array<Record<string, unknown>> } };
+    };
+    const anyOfJson = JSON.stringify(json.if.not.anyOf);
+
+    // VMs and managed disks should be present
+    expect(anyOfJson).toContain('Microsoft.Compute/virtualMachines');
+    expect(anyOfJson).toContain('Microsoft.Compute/disks');
+    // Extensions should NOT be present
+    expect(anyOfJson).not.toContain('Microsoft.Compute/virtualMachines/extensions');
+
+    // Should not have an extensions statement
+    const extStmt = policy.statements.find((s) => s.description.includes('extensions'));
+    expect(extStmt).toBeUndefined();
+  });
+
+  it('whitelists VM extensions when opted in via customResourceTypes', () => {
+    // When the user opts in to extensions via the dependency panel,
+    // the extension resource type is added to customResourceTypes and
+    // the generator should whitelist it using equals.
+    const vmService: ServiceSelection = {
+      serviceId: 'azure-compute-vm',
+      operations: ['create'],
+      customResourceTypes: ['Microsoft.Compute/virtualMachines/extensions'],
+      allowedSkus: ['Standard_B1s'],
+      allowedNames: ['VM-1'],
+    };
+    const wizard = makeWizard({ provider: 'azure', services: [vmService] });
+    const policy = generatePolicy(wizard);
+
+    const json = policy.policyJson as {
+      if: { not: { anyOf: Array<Record<string, unknown>> } };
+    };
+    const anyOfJson = JSON.stringify(json.if.not.anyOf);
+
+    // Extensions should now be present with equals
+    expect(anyOfJson).toContain('Microsoft.Compute/virtualMachines/extensions');
+    const extEntry = json.if.not.anyOf.find(
+      (entry) => entry.equals === 'Microsoft.Compute/virtualMachines/extensions',
+    );
+    expect(extEntry).toBeDefined();
+
+    // Should have an extensions statement with a warning about opting in
+    const extStmt = policy.statements.find((s) => s.description.includes('extensions'));
+    expect(extStmt).toBeDefined();
+    expect(extStmt?.warnings.some((w) => w.includes('opted in'))).toBe(true);
+  });
+
+  it('regression: VM whitelist contains exactly VMs and disks (not extensions) by default', () => {
+    // Remark 3: Full regression test asserting the exact whitelist entries
+    // when VMs are selected without opting in to extensions.
+    const vmService: ServiceSelection = {
+      serviceId: 'azure-compute-vm',
+      operations: ['create'],
+      customResourceTypes: [],
+      allowedSkus: ['Standard_B1s'],
+      allowedNames: ['VM-1'],
+    };
+    const wizard = makeWizard({ provider: 'azure', services: [vmService] });
+    const policy = generatePolicy(wizard);
+
+    const json = policy.policyJson as {
+      if: { not: { anyOf: Array<Record<string, unknown>> } };
+    };
+
+    // Collect all type conditions from the anyOf
+    const typeConditions: string[] = [];
+    for (const entry of json.if.not.anyOf) {
+      if (entry.equals) typeConditions.push(entry.equals as string);
+      if (entry.contains) typeConditions.push(entry.contains as string);
+      // Check inside allOf blocks
+      if (entry.allOf) {
+        for (const cond of entry.allOf as Array<Record<string, unknown>>) {
+          if (cond.equals) typeConditions.push(cond.equals as string);
+          if (cond.in) typeConditions.push('(SKU/name/location condition)');
+        }
+      }
+    }
+
+    // Must include VMs and managed disks
+    expect(typeConditions).toContain('Microsoft.Compute/virtualMachines');
+    expect(typeConditions).toContain('Microsoft.Compute/disks');
+    // Must NOT include extensions
+    expect(typeConditions).not.toContain('Microsoft.Compute/virtualMachines/extensions');
   });
 
   it('whitelists Microsoft.Compute/disks when VMSS is selected', () => {

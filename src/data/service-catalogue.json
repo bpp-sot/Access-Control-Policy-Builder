@@ -55,9 +55,9 @@
           "serviceId": "azure-compute-vm",
           "serviceName": "VM Extensions",
           "resourceTypes": ["Microsoft.Compute/virtualMachines/extensions"],
-          "reason": "VM extensions (e.g. custom script, domain join) are deployed as child resources of the VM. Included in the VM service's resource types. Required if the lab uses extensions for post-deployment configuration.",
+          "reason": "VM extensions (e.g. custom script, domain join, monitoring agent) are deployed as child resources of the VM. They are NOT required for basic VM deployment — only opt in if the lab uses extensions for post-deployment configuration. Opting in adds Microsoft.Compute/virtualMachines/extensions to the policy whitelist.",
           "required": false,
-          "autoIncluded": true,
+          "autoIncluded": false,
           "evidenceClassification": "C"
         },
         {

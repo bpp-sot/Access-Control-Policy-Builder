@@ -199,26 +199,38 @@ function generateAzurePolicy(wizard: WizardState): GeneratedPolicy {
     }
 
     // ── Whitelist VM supporting resource types ───────────────────────
-    // The VM service entry includes Microsoft.Compute/disks (managed disks)
-    // and Microsoft.Compute/virtualMachines/extensions as resource types.
-    // Azure automatically creates an OS managed disk when provisioning a VM,
-    // so these MUST be in the whitelist or deployment will fail — even though
-    // the VM resource type itself is permitted.
-    // Evidence: Classification C (native Azure documentation) — Azure
-    // requires a managed disk for the OS disk when provisioning a VM.
+    // Only resource types from autoIncluded dependencies are whitelisted
+    // automatically (managed disks — Azure requires them for every VM).
+    // Opt-in types (e.g. VM extensions) are only whitelisted if the user
+    // has added them to vmSelection.customResourceTypes via the dependency
+    // panel. This prevents over-permitting extensions for labs that don't
+    // need them.
+    // Operator: equals (not contains) is used for these supporting types
+    // because they are precisely known and do not need substring matching.
+    // This avoids unintentionally admitting child resource types.
+    // Evidence: Classification C (native Azure documentation).
     const vmService = findAzureService('azure-compute-vm');
-    if (vmService) {
-      const supportingTypes = vmService.resourceTypes.filter(
-        (rt) => rt !== 'Microsoft.Compute/virtualMachines',
-      );
-      for (const rt of supportingTypes) {
-        anyOfConditions.push({ field: 'type', contains: rt });
+    if (vmService?.dependencies) {
+      // Auto-included types (managed disks — required for every VM)
+      const autoTypes = vmService.dependencies
+        .filter((d) => d.autoIncluded)
+        .flatMap((d) => d.resourceTypes);
+
+      // Opt-in types from customResourceTypes (e.g. extensions)
+      const optedInTypes = vmService.dependencies
+        .filter((d) => !d.autoIncluded)
+        .flatMap((d) => d.resourceTypes)
+        .filter((rt) => vmSelection.customResourceTypes.includes(rt));
+
+      // Auto-included: use equals for precision
+      for (const rt of autoTypes) {
+        anyOfConditions.push({ field: 'type', equals: rt });
       }
-      if (supportingTypes.length > 0) {
+      if (autoTypes.length > 0) {
         statements.push({
           id: stmtId('azure', ++n),
-          description: `Allow VM supporting resources (managed disks, extensions)`,
-          plainEnglish: `The following supporting resource types are permitted because Azure requires them when deploying virtual machines: ${supportingTypes.join(', ')}. Azure automatically creates an OS managed disk (Microsoft.Compute/disks) when provisioning a VM — without this, deployment will fail even though the VM type itself is allowed.`,
+          description: `Allow VM required supporting resources (managed disks)`,
+          plainEnglish: `The following supporting resource types are automatically permitted because Azure requires them when deploying virtual machines: ${autoTypes.join(', ')}. Azure automatically creates an OS managed disk (Microsoft.Compute/disks) when provisioning a VM — without this, deployment will fail even though the VM type itself is allowed. Uses exact type matching (equals) to avoid admitting unintended child resource types.`,
           evidence: makeEvidence(
             'C',
             'Azure documentation — Managed Disks',
@@ -228,9 +240,34 @@ function generateAzurePolicy(wizard: WizardState): GeneratedPolicy {
             'application-generated',
             'high',
           ),
-          jsonFragment: supportingTypes.map((rt) => ({ field: 'type', contains: rt })),
+          jsonFragment: autoTypes.map((rt) => ({ field: 'type', equals: rt })),
           warnings: [
-            'Managed disks (Microsoft.Compute/disks) are whitelisted automatically because Azure requires them for VM OS disks. This is based on native Azure documentation (Classification C), not a Skillable sample.',
+            'Managed disks (Microsoft.Compute/disks) are whitelisted automatically because Azure requires them for VM OS disks. This is based on native Azure documentation (Classification C), not a Skillable sample. Uses exact type matching (equals).',
+          ],
+        });
+      }
+
+      // Opt-in: use equals for precision
+      for (const rt of optedInTypes) {
+        anyOfConditions.push({ field: 'type', equals: rt });
+      }
+      if (optedInTypes.length > 0) {
+        statements.push({
+          id: stmtId('azure', ++n),
+          description: `Allow VM optional supporting resources (extensions)`,
+          plainEnglish: `The following optional supporting resource types are permitted because you opted in via the dependency panel: ${optedInTypes.join(', ')}. VM extensions are not required for basic VM deployment — only opt in if the lab uses extensions (e.g. custom script, domain join, monitoring agent). Uses exact type matching (equals).`,
+          evidence: makeEvidence(
+            'C',
+            'Azure documentation — Virtual Machine Extensions',
+            null,
+            'https://learn.microsoft.com/azure/virtual-machines/extensions/overview',
+            'VM extensions are optional post-deployment configuration tools. Not required for basic VM deployment. Whitelisted only because the user explicitly opted in via the dependency panel.',
+            'application-generated',
+            'medium',
+          ),
+          jsonFragment: optedInTypes.map((rt) => ({ field: 'type', equals: rt })),
+          warnings: [
+            'VM extensions are whitelisted because you opted in. Extensions can execute arbitrary scripts on the VM — review whether they are needed for your lab.',
           ],
         });
       }
@@ -309,21 +346,27 @@ function generateAzurePolicy(wizard: WizardState): GeneratedPolicy {
     }
 
     // ── Whitelist VMSS supporting resource types ─────────────────────
-    // VMSS instances also require managed disks (Microsoft.Compute/disks)
-    // for their OS disks, just like standalone VMs.
+    // VMSS instances require managed disks (Microsoft.Compute/disks) for
+    // their OS disks, just like standalone VMs. Uses equals for precision.
     const vmssService = findAzureService('azure-compute-vmss');
-    if (vmssService) {
-      const vmssSupportingTypes = vmssService.resourceTypes.filter(
-        (rt) => rt !== 'Microsoft.Compute/virtualMachineScaleSets',
-      );
-      for (const rt of vmssSupportingTypes) {
-        anyOfConditions.push({ field: 'type', contains: rt });
+    if (vmssService?.dependencies) {
+      const vmssAutoTypes = vmssService.dependencies
+        .filter((d) => d.autoIncluded)
+        .flatMap((d) => d.resourceTypes);
+
+      const vmssOptedInTypes = vmssService.dependencies
+        .filter((d) => !d.autoIncluded)
+        .flatMap((d) => d.resourceTypes)
+        .filter((rt) => vmssSelection.customResourceTypes.includes(rt));
+
+      for (const rt of vmssAutoTypes) {
+        anyOfConditions.push({ field: 'type', equals: rt });
       }
-      if (vmssSupportingTypes.length > 0) {
+      if (vmssAutoTypes.length > 0) {
         statements.push({
           id: stmtId('azure', ++n),
-          description: `Allow VMSS supporting resources (managed disks)`,
-          plainEnglish: `The following supporting resource types are permitted because Azure requires them when deploying virtual machine scale sets: ${vmssSupportingTypes.join(', ')}. VMSS instances require managed disks for OS disks, same as standalone VMs.`,
+          description: `Allow VMSS required supporting resources (managed disks)`,
+          plainEnglish: `The following supporting resource types are automatically permitted because Azure requires them when deploying virtual machine scale sets: ${vmssAutoTypes.join(', ')}. VMSS instances require managed disks for OS disks, same as standalone VMs. Uses exact type matching (equals).`,
           evidence: makeEvidence(
             'C',
             'Azure documentation — Managed Disks',
@@ -333,10 +376,32 @@ function generateAzurePolicy(wizard: WizardState): GeneratedPolicy {
             'application-generated',
             'high',
           ),
-          jsonFragment: vmssSupportingTypes.map((rt) => ({ field: 'type', contains: rt })),
+          jsonFragment: vmssAutoTypes.map((rt) => ({ field: 'type', equals: rt })),
           warnings: [
-            'Managed disks are whitelisted automatically for VMSS. Based on native Azure documentation (Classification C).',
+            'Managed disks are whitelisted automatically for VMSS. Based on native Azure documentation (Classification C). Uses exact type matching (equals).',
           ],
+        });
+      }
+
+      for (const rt of vmssOptedInTypes) {
+        anyOfConditions.push({ field: 'type', equals: rt });
+      }
+      if (vmssOptedInTypes.length > 0) {
+        statements.push({
+          id: stmtId('azure', ++n),
+          description: `Allow VMSS optional supporting resources`,
+          plainEnglish: `The following optional supporting resource types are permitted because you opted in: ${vmssOptedInTypes.join(', ')}. Uses exact type matching (equals).`,
+          evidence: makeEvidence(
+            'C',
+            'Azure documentation — VM Scale Sets',
+            null,
+            'https://learn.microsoft.com/azure/virtual-machine-scale-sets/overview',
+            'Optional supporting resources whitelisted because the user explicitly opted in via the dependency panel.',
+            'application-generated',
+            'medium',
+          ),
+          jsonFragment: vmssOptedInTypes.map((rt) => ({ field: 'type', equals: rt })),
+          warnings: [],
         });
       }
     }
@@ -385,8 +450,13 @@ function generateAzurePolicy(wizard: WizardState): GeneratedPolicy {
           ),
       jsonFragment: svc.resourceTypes.map((rt) => ({ field: 'type', contains: rt })),
       warnings: hasSample
-        ? []
-        : [`No official Skillable sample for ${svc.name}. Manual review required.`],
+        ? [
+            `Uses "contains" operator for type matching (same as official Skillable samples). Note: "contains" is a substring match — it also permits child resource types (e.g. subnets under virtual networks, peerings). This is intentional to allow child resources needed for deployment, but verify that all admitted child types are acceptable for your lab.`,
+          ]
+        : [
+            `No official Skillable sample for ${svc.name}. Manual review required.`,
+            `Uses "contains" operator for type matching — a substring match that also permits child resource types. Verify that all admitted child types are acceptable.`,
+          ],
     });
 
     if (!hasSample) {
