@@ -213,6 +213,21 @@ export interface ServiceDependency {
   resourceTypes: string[];
   reason: string;
   required: boolean;
+  /**
+   * When true, this dependency is automatically whitelisted by the policy
+   * generator when the parent service is selected (e.g. managed disks are
+   * part of the VM service's own resourceTypes). No separate service
+   * selection is needed. The dependency panel shows it as "auto-included".
+   */
+  autoIncluded?: boolean;
+  /**
+   * Evidence classification for the dependency claim.
+   * C = Native Azure documentation (e.g. Azure creates a managed disk
+   * automatically when provisioning a VM).
+   * A = Official Skillable sample.
+   * Defaults to A if omitted.
+   */
+  evidenceClassification?: EvidenceClassification;
 }
 
 export interface ServiceCatalogueEntry {

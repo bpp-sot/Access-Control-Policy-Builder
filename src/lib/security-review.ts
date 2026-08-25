@@ -108,6 +108,8 @@ export function generateSecurityReview(
   // Dependency awareness — check for missing required supporting services
   // This is especially important for Azure VMs, which require networking and
   // storage resources that, if blocked by the ACP, cause deployment failures.
+  // NOTE: autoIncluded dependencies (e.g. managed disks) are automatically
+  // whitelisted by the policy generator and are never "missing".
   const selectedServiceIds = new Set(wizard.services.map((s) => s.serviceId));
   const allServices =
     wizard.provider === 'azure' ? azureServices : wizard.provider === 'aws' ? awsServices : [];
@@ -116,7 +118,7 @@ export function generateSecurityReview(
     const svc = allServices.find((s) => s.id === sel.serviceId);
     if (!svc?.dependencies) continue;
     for (const dep of svc.dependencies) {
-      if (dep.required && !selectedServiceIds.has(dep.serviceId)) {
+      if (dep.required && !dep.autoIncluded && !selectedServiceIds.has(dep.serviceId)) {
         missingDeps.push({ parent: svc.name, dep: dep.serviceName, types: dep.resourceTypes });
       }
     }

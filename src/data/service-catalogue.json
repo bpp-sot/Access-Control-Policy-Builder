@@ -43,6 +43,24 @@
       "notes": "VMs are the most abused resource by malicious users (e.g. bitcoin miners). Limit by SKU, Region, and Name for maximum security.",
       "dependencies": [
         {
+          "serviceId": "azure-compute-vm",
+          "serviceName": "Managed Disks",
+          "resourceTypes": ["Microsoft.Compute/disks"],
+          "reason": "Azure automatically creates an OS managed disk (Microsoft.Compute/disks) when provisioning a standard VM. Without this resource type in the policy whitelist, VM deployment will fail even though the VM resource type itself is permitted. This is native Azure platform behaviour, not a Skillable-specific rule.",
+          "required": true,
+          "autoIncluded": true,
+          "evidenceClassification": "C"
+        },
+        {
+          "serviceId": "azure-compute-vm",
+          "serviceName": "VM Extensions",
+          "resourceTypes": ["Microsoft.Compute/virtualMachines/extensions"],
+          "reason": "VM extensions (e.g. custom script, domain join) are deployed as child resources of the VM. Included in the VM service's resource types. Required if the lab uses extensions for post-deployment configuration.",
+          "required": false,
+          "autoIncluded": true,
+          "evidenceClassification": "C"
+        },
+        {
           "serviceId": "azure-networking",
           "serviceName": "Networking",
           "resourceTypes": [
@@ -64,7 +82,7 @@
           "serviceId": "azure-storage",
           "serviceName": "Storage Accounts",
           "resourceTypes": ["Microsoft.Storage/storageAccounts"],
-          "reason": "Storage accounts are required for VM diagnostic logs and boot diagnostics. Included as a supporting resource in official samples like 'Limit VM by Name, Size, and Location' and 'Restrict to VM Scale Sets'.",
+          "reason": "Storage accounts are required for VM diagnostic logs and boot diagnostics. Included as a supporting resource in official samples like 'Limit VM by Name, Size, and Location' and 'Restrict to VM Scale Sets'. Note: Storage Accounts are NOT the same as Managed Disks — managed disks are Azure-managed disk resources (Microsoft.Compute/disks), while storage accounts are used for diagnostics and unmanaged data.",
           "required": false
         }
       ]
@@ -73,7 +91,7 @@
       "id": "azure-compute-vmss",
       "name": "Virtual Machine Scale Sets",
       "category": "Compute",
-      "resourceTypes": ["Microsoft.Compute/virtualMachineScaleSets"],
+      "resourceTypes": ["Microsoft.Compute/virtualMachineScaleSets", "Microsoft.Compute/disks"],
       "officialSampleAvailable": true,
       "officialSampleIds": ["azure-limit-vm-vmss-name-sku-region-capacity", "azure-restrict-vmss"],
       "riskCategory": "High",
@@ -82,6 +100,15 @@
       "networkExposureSensitivity": "Medium",
       "notes": "Scale sets can scale automatically. Consider limiting sku.capacity to prevent runaway costs.",
       "dependencies": [
+        {
+          "serviceId": "azure-compute-vmss",
+          "serviceName": "Managed Disks",
+          "resourceTypes": ["Microsoft.Compute/disks"],
+          "reason": "Azure automatically creates managed disks for each VMSS instance's OS disk when provisioning a scale set. Without this resource type in the policy whitelist, VMSS deployment will fail. This is native Azure platform behaviour, not a Skillable-specific rule.",
+          "required": true,
+          "autoIncluded": true,
+          "evidenceClassification": "C"
+        },
         {
           "serviceId": "azure-networking",
           "serviceName": "Networking",

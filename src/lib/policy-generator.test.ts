@@ -60,6 +60,82 @@ describe('generatePolicy — Azure', () => {
     expect(vmStmt?.plainEnglish).toContain('VM-1');
   });
 
+  it('whitelists Microsoft.Compute/disks (managed disks) when VMs are selected', () => {
+    // This is the regression test for the original deployment failure:
+    // a policy allowing VMs but blocking Microsoft.Compute/disks caused
+    // Azure deployment to fail because Azure creates an OS managed disk
+    // automatically when provisioning a VM.
+    const vmService: ServiceSelection = {
+      serviceId: 'azure-compute-vm',
+      operations: ['create'],
+      customResourceTypes: [],
+      allowedSkus: ['Standard_B1s'],
+      allowedNames: ['VM-1'],
+    };
+    const wizard = makeWizard({ provider: 'azure', services: [vmService] });
+    const policy = generatePolicy(wizard);
+
+    // The generated policy JSON must include a contains condition for
+    // Microsoft.Compute/disks in the anyOf whitelist.
+    const json = policy.policyJson as {
+      if: { not: { anyOf: Array<Record<string, unknown>> } };
+    };
+    const anyOfJson = JSON.stringify(json.if.not.anyOf);
+    expect(anyOfJson).toContain('Microsoft.Compute/disks');
+
+    // There should be a statement explaining the managed disk whitelisting
+    const diskStmt = policy.statements.find((s) => s.description.includes('managed disks'));
+    expect(diskStmt).toBeDefined();
+    expect(diskStmt?.plainEnglish).toContain('Microsoft.Compute/disks');
+    // Should be Classification C (native Azure documentation), not A
+    expect(diskStmt?.evidence.classification).toBe('C');
+  });
+
+  it('whitelists Microsoft.Compute/disks when VMSS is selected', () => {
+    const vmssService: ServiceSelection = {
+      serviceId: 'azure-compute-vmss',
+      operations: ['create'],
+      customResourceTypes: [],
+      allowedSkus: ['Standard_B1s'],
+      allowedNames: [],
+      maxCapacity: 5,
+    };
+    const wizard = makeWizard({ provider: 'azure', services: [vmssService] });
+    const policy = generatePolicy(wizard);
+
+    const json = policy.policyJson as {
+      if: { not: { anyOf: Array<Record<string, unknown>> } };
+    };
+    const anyOfJson = JSON.stringify(json.if.not.anyOf);
+    expect(anyOfJson).toContain('Microsoft.Compute/disks');
+  });
+
+  it('does not warn about missing managed disks dependency (auto-included)', () => {
+    // Managed disks are autoIncluded — the generator whitelists them
+    // automatically. So even if no other service is selected, the
+    // managed disks dependency should NOT appear as a missing required dep.
+    const vmService: ServiceSelection = {
+      serviceId: 'azure-compute-vm',
+      operations: ['create'],
+      customResourceTypes: [],
+      allowedSkus: ['Standard_B1s'],
+      allowedNames: ['VM-1'],
+    };
+    const wizard = makeWizard({ provider: 'azure', services: [vmService] });
+    const policy = generatePolicy(wizard);
+
+    // Should NOT warn about missing Managed Disks (it's auto-included)
+    expect(
+      policy.warnings.some((w) => w.includes('Managed Disks') && w.includes('not selected')),
+    ).toBe(false);
+    // Should NOT flag managed disks as a missing required dependency
+    expect(
+      policy.securityRisks.some(
+        (r) => r.includes('Missing required dependency') && r.includes('Managed Disks'),
+      ),
+    ).toBe(false);
+  });
+
   it('warns when VM has no SKU restriction', () => {
     const vmService: ServiceSelection = {
       serviceId: 'azure-compute-vm',

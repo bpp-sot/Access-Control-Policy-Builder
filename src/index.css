@@ -504,6 +504,11 @@ a:hover {
   background: rgba(255, 165, 0, 0.04);
 }
 
+.dependency-item.auto-included {
+  border-color: var(--accent-primary);
+  background: rgba(99, 102, 241, 0.06);
+}
+
 .dependency-item-status {
   font-size: 1.1rem;
   line-height: 1.4;
@@ -581,6 +586,30 @@ a:hover {
 .badge-neutral {
   background: var(--bg-tertiary);
   color: var(--text-secondary);
+}
+
+/* Evidence classification badges (A-G) */
+.badge-evidence-a {
+  background: rgba(63, 185, 80, 0.15);
+  color: var(--accent-success);
+}
+.badge-evidence-b,
+.badge-evidence-c {
+  background: rgba(59, 130, 246, 0.15);
+  color: #3b82f6;
+}
+.badge-evidence-d {
+  background: rgba(249, 115, 22, 0.15);
+  color: #f97316;
+}
+.badge-evidence-e {
+  background: rgba(168, 85, 247, 0.15);
+  color: #a855f7;
+}
+.badge-evidence-f,
+.badge-evidence-g {
+  background: rgba(248, 81, 73, 0.15);
+  color: var(--accent-danger);
 }
 
 /* Alerts */

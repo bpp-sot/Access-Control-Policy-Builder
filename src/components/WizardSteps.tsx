@@ -732,7 +732,10 @@ export function Step6Services() {
 
   // ── Dependency awareness ──────────────────────────────────────────────
   // Collect all dependencies from selected services that have them.
-  // Each dependency points to a serviceId that should also be selected.
+  // Each dependency points to a serviceId that should also be selected,
+  // unless autoIncluded is true (meaning the resource type is already
+  // part of the parent service's own resourceTypes and is automatically
+  // whitelisted by the policy generator).
   const selectedWithDeps = wizard.services
     .map((sel) => {
       const svc = services.find((s) => s.id === sel.serviceId);
@@ -740,17 +743,22 @@ export function Step6Services() {
     })
     .filter((x): x is { service: ServiceCatalogueEntry; deps: ServiceDependency[] } => x !== null);
 
-  // Check which required dependencies are missing (service not selected)
+  // A dependency is "satisfied" if:
+  //  - it is autoIncluded (handled by the generator), OR
+  //  - the target serviceId is selected
+  const isDepSatisfied = (dep: ServiceDependency) => dep.autoIncluded || isSelected(dep.serviceId);
+
+  // Check which required dependencies are missing (service not selected and not auto-included)
   const missingRequiredDeps = selectedWithDeps.flatMap(({ service, deps }) =>
     deps
-      .filter((d) => d.required && !isSelected(d.serviceId))
+      .filter((d) => d.required && !isDepSatisfied(d))
       .map((d) => ({ ...d, parentServiceName: service.name })),
   );
 
   // Check which optional dependencies are missing
   const missingOptionalDeps = selectedWithDeps.flatMap(({ service, deps }) =>
     deps
-      .filter((d) => !d.required && !isSelected(d.serviceId))
+      .filter((d) => !d.required && !isDepSatisfied(d))
       .map((d) => ({ ...d, parentServiceName: service.name })),
   );
 
@@ -846,8 +854,8 @@ export function Step6Services() {
             {Array.from(depsByParent.entries()).map(([parentId, { parent, deps }]) => {
               const requiredDeps = deps.filter((d) => d.required);
               const optionalDeps = deps.filter((d) => !d.required);
-              const allIncluded = deps.every((d) => isSelected(d.serviceId));
-              const requiredIncluded = requiredDeps.every((d) => isSelected(d.serviceId));
+              const allIncluded = deps.every((d) => isDepSatisfied(d));
+              const requiredIncluded = requiredDeps.every((d) => isDepSatisfied(d));
 
               return (
                 <div key={parentId} className="dependency-group">
@@ -882,14 +890,16 @@ export function Step6Services() {
                     <div className="dependency-list">
                       <div className="dependency-list-label">Required for deployment:</div>
                       {requiredDeps.map((dep, idx) => {
-                        const included = isSelected(dep.serviceId);
+                        const included = isDepSatisfied(dep);
+                        const autoIncluded = dep.autoIncluded === true;
+                        const evidenceClass = dep.evidenceClassification ?? 'A';
                         return (
                           <div
                             key={`${dep.serviceId}-${idx}`}
-                            className={`dependency-item ${included ? 'included' : 'missing'}`}
+                            className={`dependency-item ${autoIncluded ? 'auto-included' : included ? 'included' : 'missing'}`}
                           >
                             <div className="dependency-item-status">
-                              {included ? '\u2705' : '\u274C'}
+                              {autoIncluded ? '\u{2699}' : included ? '\u2705' : '\u274C'}
                             </div>
                             <div className="dependency-item-content">
                               <div className="dependency-item-name">
@@ -897,10 +907,18 @@ export function Step6Services() {
                                 <span className="dependency-item-types">
                                   {dep.resourceTypes.join(', ')}
                                 </span>
+                                {autoIncluded && (
+                                  <span className="badge badge-info">Auto-included</span>
+                                )}
+                                <span
+                                  className={`badge badge-evidence-${evidenceClass.toLowerCase()}`}
+                                >
+                                  Class {evidenceClass}
+                                </span>
                               </div>
                               <div className="dependency-item-reason">{dep.reason}</div>
                             </div>
-                            {!included && (
+                            {!included && !autoIncluded && (
                               <button
                                 className="btn btn-secondary btn-sm"
                                 onClick={() => addDependency(dep)}
@@ -918,14 +936,16 @@ export function Step6Services() {
                     <div className="dependency-list">
                       <div className="dependency-list-label">Recommended (optional):</div>
                       {optionalDeps.map((dep, idx) => {
-                        const included = isSelected(dep.serviceId);
+                        const included = isDepSatisfied(dep);
+                        const autoIncluded = dep.autoIncluded === true;
+                        const evidenceClass = dep.evidenceClassification ?? 'A';
                         return (
                           <div
                             key={`${dep.serviceId}-${idx}`}
-                            className={`dependency-item ${included ? 'included' : 'optional'}`}
+                            className={`dependency-item ${autoIncluded ? 'auto-included' : included ? 'included' : 'optional'}`}
                           >
                             <div className="dependency-item-status">
-                              {included ? '\u2705' : '\u2B55'}
+                              {autoIncluded ? '\u{2699}' : included ? '\u2705' : '\u2B55'}
                             </div>
                             <div className="dependency-item-content">
                               <div className="dependency-item-name">
@@ -933,10 +953,18 @@ export function Step6Services() {
                                 <span className="dependency-item-types">
                                   {dep.resourceTypes.join(', ')}
                                 </span>
+                                {autoIncluded && (
+                                  <span className="badge badge-info">Auto-included</span>
+                                )}
+                                <span
+                                  className={`badge badge-evidence-${evidenceClass.toLowerCase()}`}
+                                >
+                                  Class {evidenceClass}
+                                </span>
                               </div>
                               <div className="dependency-item-reason">{dep.reason}</div>
                             </div>
-                            {!included && (
+                            {!included && !autoIncluded && (
                               <button
                                 className="btn btn-secondary btn-sm"
                                 onClick={() => addDependency(dep)}

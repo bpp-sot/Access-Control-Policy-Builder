@@ -95,16 +95,19 @@ function generateAzurePolicy(wizard: WizardState): GeneratedPolicy {
   // supporting services also selected. Missing required dependencies will
   // cause Azure deployment failures even though the primary resource type
   // is permitted by the policy.
+  // NOTE: Dependencies with autoIncluded=true are automatically whitelisted
+  // by the generator (e.g. managed disks are part of the VM service's own
+  // resourceTypes), so they are never "missing".
   const selectedServiceIds = new Set(services.map((s) => s.serviceId));
   for (const sel of services) {
     const svc = findAzureService(sel.serviceId);
     if (!svc?.dependencies) continue;
 
     const missingRequired = svc.dependencies.filter(
-      (d) => d.required && !selectedServiceIds.has(d.serviceId),
+      (d) => d.required && !d.autoIncluded && !selectedServiceIds.has(d.serviceId),
     );
     const missingOptional = svc.dependencies.filter(
-      (d) => !d.required && !selectedServiceIds.has(d.serviceId),
+      (d) => !d.required && !d.autoIncluded && !selectedServiceIds.has(d.serviceId),
     );
 
     for (const dep of missingRequired) {
@@ -194,6 +197,44 @@ function generateAzurePolicy(wizard: WizardState): GeneratedPolicy {
         'Virtual machines have no name restriction. Users can create unlimited VMs. Add allowed names to mitigate.',
       );
     }
+
+    // ── Whitelist VM supporting resource types ───────────────────────
+    // The VM service entry includes Microsoft.Compute/disks (managed disks)
+    // and Microsoft.Compute/virtualMachines/extensions as resource types.
+    // Azure automatically creates an OS managed disk when provisioning a VM,
+    // so these MUST be in the whitelist or deployment will fail — even though
+    // the VM resource type itself is permitted.
+    // Evidence: Classification C (native Azure documentation) — Azure
+    // requires a managed disk for the OS disk when provisioning a VM.
+    const vmService = findAzureService('azure-compute-vm');
+    if (vmService) {
+      const supportingTypes = vmService.resourceTypes.filter(
+        (rt) => rt !== 'Microsoft.Compute/virtualMachines',
+      );
+      for (const rt of supportingTypes) {
+        anyOfConditions.push({ field: 'type', contains: rt });
+      }
+      if (supportingTypes.length > 0) {
+        statements.push({
+          id: stmtId('azure', ++n),
+          description: `Allow VM supporting resources (managed disks, extensions)`,
+          plainEnglish: `The following supporting resource types are permitted because Azure requires them when deploying virtual machines: ${supportingTypes.join(', ')}. Azure automatically creates an OS managed disk (Microsoft.Compute/disks) when provisioning a VM — without this, deployment will fail even though the VM type itself is allowed.`,
+          evidence: makeEvidence(
+            'C',
+            'Azure documentation — Managed Disks',
+            null,
+            'https://learn.microsoft.com/azure/virtual-machines/managed-disks-overview',
+            'Azure automatically creates a managed disk for the OS disk when provisioning a standard VM. This is native Azure platform behaviour documented in the Azure Managed Disks overview, not a Skillable-specific rule. Without whitelisting Microsoft.Compute/disks, VM deployment will fail under the Access Control Policy.',
+            'application-generated',
+            'high',
+          ),
+          jsonFragment: supportingTypes.map((rt) => ({ field: 'type', contains: rt })),
+          warnings: [
+            'Managed disks (Microsoft.Compute/disks) are whitelisted automatically because Azure requires them for VM OS disks. This is based on native Azure documentation (Classification C), not a Skillable sample.',
+          ],
+        });
+      }
+    }
   }
 
   // VMSS-specific conditions
@@ -265,6 +306,39 @@ function generateAzurePolicy(wizard: WizardState): GeneratedPolicy {
       securityRisks.push(
         'VM scale sets have no capacity limit. Users can scale to many instances. Set maxCapacity to mitigate.',
       );
+    }
+
+    // ── Whitelist VMSS supporting resource types ─────────────────────
+    // VMSS instances also require managed disks (Microsoft.Compute/disks)
+    // for their OS disks, just like standalone VMs.
+    const vmssService = findAzureService('azure-compute-vmss');
+    if (vmssService) {
+      const vmssSupportingTypes = vmssService.resourceTypes.filter(
+        (rt) => rt !== 'Microsoft.Compute/virtualMachineScaleSets',
+      );
+      for (const rt of vmssSupportingTypes) {
+        anyOfConditions.push({ field: 'type', contains: rt });
+      }
+      if (vmssSupportingTypes.length > 0) {
+        statements.push({
+          id: stmtId('azure', ++n),
+          description: `Allow VMSS supporting resources (managed disks)`,
+          plainEnglish: `The following supporting resource types are permitted because Azure requires them when deploying virtual machine scale sets: ${vmssSupportingTypes.join(', ')}. VMSS instances require managed disks for OS disks, same as standalone VMs.`,
+          evidence: makeEvidence(
+            'C',
+            'Azure documentation — Managed Disks',
+            null,
+            'https://learn.microsoft.com/azure/virtual-machine-scale-sets/overview',
+            'Azure automatically creates managed disks for VMSS instance OS disks. This is native Azure platform behaviour, not a Skillable-specific rule.',
+            'application-generated',
+            'high',
+          ),
+          jsonFragment: vmssSupportingTypes.map((rt) => ({ field: 'type', contains: rt })),
+          warnings: [
+            'Managed disks are whitelisted automatically for VMSS. Based on native Azure documentation (Classification C).',
+          ],
+        });
+      }
     }
   }
 
