@@ -399,6 +399,144 @@ describe('generatePolicy — AWS', () => {
     const json = policy.policyJson as { Statement: Array<{ Effect: string; Action: string }> };
     expect(json.Statement.some((s) => s.Effect === 'Deny' && s.Action === '*')).toBe(true);
   });
+
+  it('generates specific IAM actions when operations are selected (not wildcards)', () => {
+    // The core fix: selecting operations should produce specific IAM
+    // actions, not a wildcard. This is what addresses the user's report
+    // of unresolvable wildcard security risk warnings.
+    const ec2Service: ServiceSelection = {
+      serviceId: 'aws-ec2',
+      operations: ['view', 'list', 'start', 'stop'],
+      customResourceTypes: [],
+      allowedSkus: ['t2.micro'],
+      allowedNames: [],
+    };
+    const wizard = makeWizard({ provider: 'aws', services: [ec2Service] });
+    const policy = generatePolicy(wizard);
+
+    const json = policy.policyJson as {
+      Statement: Array<{ Action: string | string[]; Effect: string }>;
+    };
+
+    // The Allow statement should use an array of specific actions, not "ec2:*"
+    const allowStmt = json.Statement.find((s) => s.Effect === 'Allow');
+    expect(allowStmt).toBeDefined();
+    const actions = Array.isArray(allowStmt!.Action) ? allowStmt!.Action : [allowStmt!.Action];
+    // Should NOT contain a wildcard
+    expect(actions.some((a) => a.includes('*'))).toBe(false);
+    // Should contain specific actions derived from the operations
+    expect(actions).toContain('ec2:DescribeInstances'); // from view + list
+    expect(actions).toContain('ec2:StartInstances'); // from start
+    expect(actions).toContain('ec2:StopInstances'); // from stop
+  });
+
+  it('falls back to wildcard when no operations are selected', () => {
+    const ec2Service: ServiceSelection = {
+      serviceId: 'aws-ec2',
+      operations: [], // no operations selected
+      customResourceTypes: [],
+      allowedSkus: ['t2.micro'],
+      allowedNames: [],
+    };
+    const wizard = makeWizard({ provider: 'aws', services: [ec2Service] });
+    const policy = generatePolicy(wizard);
+
+    const json = policy.policyJson as {
+      Statement: Array<{ Action: string | string[]; Effect: string }>;
+    };
+    const allowStmt = json.Statement.find((s) => s.Effect === 'Allow');
+    const actions = Array.isArray(allowStmt!.Action) ? allowStmt!.Action : [allowStmt!.Action];
+    expect(actions).toContain('ec2:*');
+
+    // Should warn about wildcard usage
+    expect(policy.warnings.some((w) => w.includes('wildcard'))).toBe(true);
+    expect(policy.securityRisks.some((r) => r.includes('wildcard'))).toBe(true);
+  });
+
+  it('does not produce wildcard security risk when operations are selected', () => {
+    // The user's core complaint: wildcard security risks they can't address.
+    // When operations ARE selected, there should be no wildcard risk.
+    const s3Service: ServiceSelection = {
+      serviceId: 'aws-s3',
+      operations: ['view', 'list', 'upload', 'download'],
+      customResourceTypes: [],
+      allowedSkus: [],
+      allowedNames: [],
+    };
+    const wizard = makeWizard({ provider: 'aws', services: [s3Service] });
+    const policy = generatePolicy(wizard);
+
+    // Should NOT have a wildcard security risk for S3
+    expect(policy.securityRisks.some((r) => r.includes('S3') && r.includes('wildcard'))).toBe(
+      false,
+    );
+  });
+
+  it('uses resource ARN restrictions when allowedNames are provided', () => {
+    const s3Service: ServiceSelection = {
+      serviceId: 'aws-s3',
+      operations: ['view', 'list'],
+      customResourceTypes: [],
+      allowedSkus: [],
+      allowedNames: ['arn:aws:s3:::my-lab-bucket'],
+    };
+    const wizard = makeWizard({ provider: 'aws', services: [s3Service] });
+    const policy = generatePolicy(wizard);
+
+    const json = policy.policyJson as {
+      Statement: Array<{ Action: string | string[]; Resource: string; Effect: string }>;
+    };
+    const allowStmt = json.Statement.find(
+      (s) => s.Effect === 'Allow' && s.Action !== 'ec2:RunInstances',
+    );
+    expect(allowStmt).toBeDefined();
+    expect(allowStmt!.Resource).toBe('arn:aws:s3:::my-lab-bucket');
+  });
+
+  it('generates specific IAM actions for IAM service with privilege escalation warning', () => {
+    const iamService: ServiceSelection = {
+      serviceId: 'aws-iam',
+      operations: ['view', 'list', 'create'],
+      customResourceTypes: [],
+      allowedSkus: [],
+      allowedNames: [],
+    };
+    const wizard = makeWizard({ provider: 'aws', services: [iamService] });
+    const policy = generatePolicy(wizard);
+
+    // Should have specific actions, not wildcard
+    const json = policy.policyJson as {
+      Statement: Array<{ Action: string | string[]; Effect: string }>;
+    };
+    const allowStmt = json.Statement.find((s) => s.Effect === 'Allow');
+    const actions = Array.isArray(allowStmt!.Action) ? allowStmt!.Action : [allowStmt!.Action];
+    expect(actions.some((a) => a === 'iam:*')).toBe(false);
+    expect(actions).toContain('iam:GetUser'); // from view
+    expect(actions).toContain('iam:ListUsers'); // from list
+    expect(actions).toContain('iam:CreateUser'); // from create
+
+    // Should still warn about IAM privilege escalation even with specific actions
+    expect(policy.warnings.some((w) => w.includes('escalate') || w.includes('privilege'))).toBe(
+      true,
+    );
+    expect(policy.securityRisks.some((r) => r.includes('IAM'))).toBe(true);
+  });
+
+  it('does not warn about missing sample for VPC (covered by EC2 samples)', () => {
+    const vpcService: ServiceSelection = {
+      serviceId: 'aws-vpc',
+      operations: ['view', 'list'],
+      customResourceTypes: [],
+      allowedSkus: [],
+      allowedNames: [],
+    };
+    const wizard = makeWizard({ provider: 'aws', services: [vpcService] });
+    const policy = generatePolicy(wizard);
+
+    // VPC uses ec2: prefix which IS covered by official samples
+    expect(policy.warnings.some((w) => w.includes('VPC') && w.includes('No official'))).toBe(false);
+    expect(policy.unsupportedCombinations.some((u) => u.includes('VPC'))).toBe(false);
+  });
 });
 
 describe('generatePolicy — Azure VM dependency awareness', () => {

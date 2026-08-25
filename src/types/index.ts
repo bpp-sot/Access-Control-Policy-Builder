@@ -250,6 +250,14 @@ export interface OperationDef {
   id: string;
   label: string;
   description: string;
+  /**
+   * Maps an operation ID to AWS IAM actions for a specific service.
+   * Keyed by service id (e.g. "aws-ec2"). Each entry is a list of
+   * specific IAM actions (e.g. ["ec2:DescribeInstances"]).
+   * If a service is not listed for an operation, the operation falls
+   * back to the wildcard prefix.
+   */
+  awsActions?: Record<string, string[]>;
 }
 
 export interface ThemeState {

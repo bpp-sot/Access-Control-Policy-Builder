@@ -1267,6 +1267,17 @@ export function Step7Operations() {
 
             <div className="form-group">
               <label className="form-label">Operations</label>
+              {wizard.provider === 'aws' && sel.operations.length === 0 && (
+                <div className="alert alert-warning mb-3">
+                  <span>{'\u{26A0}'}</span>
+                  <div>
+                    No operations selected. The generated policy will use a wildcard action (
+                    <code>{svc.iamActionPrefix ?? svc.id}* </code>) which grants all {svc.name}{' '}
+                    permissions. Select specific operations to generate a narrower, least-privilege
+                    policy with specific IAM actions.
+                  </div>
+                </div>
+              )}
               <div className="form-grid-3">
                 {operations.map((op) => (
                   <label
@@ -1339,6 +1350,34 @@ export function Step7Operations() {
                 </div>
               )}
 
+            {wizard.provider === 'aws' && (
+              <div className="form-group">
+                <label className="form-label">Resource ARN Restrictions (optional)</label>
+                <div className="form-hint mb-2">
+                  Restrict actions to specific resource ARNs instead of all resources
+                  (&quot;*&quot;). Enter full ARNs (e.g. <code>arn:aws:s3:::my-lab-bucket</code> or{' '}
+                  <code>arn:aws:ec2:eu-west-2:123456789012:instance/*</code>). Leave empty to allow
+                  on all resources.
+                </div>
+                <NameInput
+                  names={sel.allowedNames}
+                  onAdd={(name) => addName(svc.id, name)}
+                  onRemove={(name) => removeName(svc.id, name)}
+                  placeholder="arn:aws:..."
+                />
+                {sel.allowedNames.length === 0 && (
+                  <div className="alert alert-info mt-2">
+                    <span>{'\u{2139}'}</span>
+                    <div>
+                      No resource ARNs specified — actions will apply to all resources
+                      (&quot;*&quot;). Adding specific ARNs narrows the scope and is a best practice
+                      for least-privilege policies.
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             {svc.id === 'azure-compute-vmss' && (
               <div className="form-group">
                 <label className="form-label">Max Capacity (Scale Set Instances)</label>
@@ -1374,10 +1413,12 @@ function NameInput({
   names,
   onAdd,
   onRemove,
+  placeholder = 'e.g. VM-1',
 }: {
   names: string[];
   onAdd: (name: string) => void;
   onRemove: (name: string) => void;
+  placeholder?: string;
 }) {
   const [input, setInput] = useState('');
   return (
@@ -1394,7 +1435,7 @@ function NameInput({
               setInput('');
             }
           }}
-          placeholder="e.g. VM-1"
+          placeholder={placeholder}
         />
         <button
           className="btn btn-primary"

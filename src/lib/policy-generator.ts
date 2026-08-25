@@ -8,12 +8,13 @@ import type {
 import azurePatterns from '@data/azure-patterns.json';
 import awsPatterns from '@data/aws-patterns.json';
 import serviceCatalogue from '@data/service-catalogue.json';
-import type { AzurePattern, AwsPattern, ServiceCatalogueEntry } from '@/types';
+import type { AzurePattern, AwsPattern, OperationDef, ServiceCatalogueEntry } from '@/types';
 
 const azurePatternList = azurePatterns.patterns as AzurePattern[];
 const awsPatternList = awsPatterns.patterns as AwsPattern[];
 const azureServices = serviceCatalogue.azureServices as ServiceCatalogueEntry[];
 const awsServices = serviceCatalogue.awsServices as ServiceCatalogueEntry[];
+const operationDefs = serviceCatalogue.operations as OperationDef[];
 
 function findAzurePattern(id: string): AzurePattern | undefined {
   return azurePatternList.find((p) => p.id === id);
@@ -608,20 +609,64 @@ function generateAwsPolicy(wizard: WizardState): GeneratedPolicy {
     const svc = findAwsService(sel.serviceId);
     if (!svc || !svc.iamActionPrefix) continue;
 
-    const actionPrefix = svc.iamActionPrefix;
-    const allowAction = `${actionPrefix}*`;
+    const hasSample = svc.officialSampleAvailable;
+
+    // ── Determine actions based on selected operations ───────────────
+    // If the user has selected specific operations in Step 7, map them
+    // to concrete IAM actions using the operation-to-action mapping in
+    // the service catalogue. This produces a narrow, specific policy
+    // instead of a broad wildcard.
+    //
+    // If no operations are selected, fall back to the wildcard prefix
+    // (with a warning) so the policy is still functional.
+    const selectedOps = sel.operations;
+    let actions: string[];
+    let usedWildcard = false;
+
+    if (selectedOps.length > 0) {
+      // Collect specific IAM actions from the operation mapping
+      const actionSet = new Set<string>();
+      for (const opId of selectedOps) {
+        const opDef = operationDefs.find((o) => o.id === opId);
+        const svcActions = opDef?.awsActions?.[svc.id];
+        if (svcActions && svcActions.length > 0) {
+          for (const a of svcActions) actionSet.add(a);
+        }
+      }
+      actions = Array.from(actionSet).sort();
+
+      // If no specific actions were found (e.g. an operation has no
+      // mapping for this service), fall back to wildcard for those ops
+      if (actions.length === 0) {
+        actions = [`${svc.iamActionPrefix}*`];
+        usedWildcard = true;
+      }
+    } else {
+      // No operations selected — use wildcard as fallback
+      actions = [`${svc.iamActionPrefix}*`];
+      usedWildcard = true;
+    }
+
+    const actionList = actions.length === 1 ? actions[0] : actions;
+    const resourceArn = sel.allowedNames.length > 0 ? sel.allowedNames.join(',') : '*';
 
     iamStatements.push({
-      Action: allowAction,
-      Resource: '*',
+      Action: actionList,
+      Resource: resourceArn,
       Effect: 'Allow',
     });
 
-    const hasSample = svc.officialSampleAvailable;
+    // Build evidence and warnings based on whether we used specific actions or wildcards
+    const actionDescription = usedWildcard
+      ? `all ${svc.name} actions (${actions[0]})`
+      : `${actions.length} specific ${svc.name} action(s): ${actions.join(', ')}`;
+
     statements.push({
       id: stmtId('aws', ++n),
-      description: `Allow ${svc.name} actions`,
-      plainEnglish: `All ${svc.name} actions (${allowAction}) are allowed on all resources. This follows the official Skillable sample pattern of allowing service-level access.`,
+      description: `Allow ${svc.name} — ${usedWildcard ? 'wildcard' : 'operation-based'}`,
+      plainEnglish: usedWildcard
+        ? `${actionDescription} are allowed on ${resourceArn === '*' ? 'all resources' : `resources: ${resourceArn}`}. No specific operations were selected, so a wildcard is used as a fallback. Select operations in Step 7 to narrow this to specific actions.`
+        : `${actionDescription} are allowed on ${resourceArn === '*' ? 'all resources' : `resources: ${resourceArn}`}. These actions were derived from the operations you selected in Step 7 (${selectedOps.join(', ')}). This is narrower than a wildcard and follows least-privilege principles.`,
       evidence: hasSample
         ? makeEvidence(
             'A',
@@ -631,31 +676,63 @@ function generateAwsPolicy(wizard: WizardState): GeneratedPolicy {
               .join(', ') || 'AWS samples',
             null,
             null,
-            `Allow statement for ${svc.name} derived from official Skillable samples using wildcard action pattern.`,
+            usedWildcard
+              ? `Wildcard allow statement for ${svc.name} derived from official Skillable samples. The samples use ${svc.iamActionPrefix}* as the baseline allow pattern.`
+              : `Operation-based allow statement for ${svc.name}. Actions mapped from selected operations using native AWS IAM action names (Classification D). The official Skillable samples establish the allow-statement pattern; the specific actions are derived from AWS documentation.`,
             'parameterised',
-            'high',
+            usedWildcard ? 'high' : 'high',
           )
         : makeEvidence(
             'G',
             'No official sample',
             null,
             null,
-            `${svc.name} has no official Skillable sample. Allow statement generated from service catalogue. Requires manual review.`,
+            usedWildcard
+              ? `${svc.name} has no official Skillable sample. Wildcard allow statement generated from service catalogue. Requires manual review.`
+              : `${svc.name} has no official Skillable sample, but specific actions were derived from the operation mapping (Classification D — native AWS documentation). The allow-statement pattern follows the Skillable model. Requires manual review for correctness.`,
             'application-generated',
             'low',
           ),
-      jsonFragment: { Action: allowAction, Resource: '*', Effect: 'Allow' },
+      jsonFragment: { Action: actionList, Resource: resourceArn, Effect: 'Allow' },
       warnings: [
-        `Uses wildcard action ${allowAction} — this grants all ${svc.name} permissions. Consider narrowing to specific actions.`,
+        ...(usedWildcard
+          ? [
+              `Uses wildcard action ${actions[0]} — this grants all ${svc.name} permissions. Select specific operations in Step 7 to narrow this to specific actions.`,
+            ]
+          : [
+              `Specific actions granted based on selected operations. This is narrower than a wildcard. Review the action list to ensure it matches your lab requirements.`,
+            ]),
         ...(hasSample
           ? []
-          : [`No official Skillable sample for ${svc.name}. Manual review required.`]),
+          : [
+              `No official Skillable sample for ${svc.name}. Manual review required.`,
+              ...(svc.id === 'aws-iam'
+                ? [
+                    'IAM permissions can escalate privileges. Carefully review each action — granting iam:CreateRole or iam:PutRolePolicy can allow a learner to grant themselves broader permissions.',
+                  ]
+                : []),
+            ]),
       ],
     });
 
-    securityRisks.push(
-      `${svc.name} uses wildcard action ${allowAction} on Resource "*". This is broad — consider restricting to specific actions and resources.`,
-    );
+    // Security risk only for wildcards
+    if (usedWildcard) {
+      securityRisks.push(
+        `${svc.name} uses wildcard action ${actions[0]} on Resource "${resourceArn}". This is broad — select specific operations in Step 7 to narrow it.`,
+      );
+      // Also surface as a top-level warning so it appears in the warnings list
+      warnings.push(
+        `${svc.name} uses wildcard action ${actions[0]} — select specific operations in Step 7 to generate a narrower, least-privilege policy.`,
+      );
+    } else if (svc.id === 'aws-iam') {
+      // IAM is always a risk even with specific actions
+      securityRisks.push(
+        `${svc.name} grants IAM actions (${actions.join(', ')}). IAM permissions can escalate privileges even when scoped to specific actions. Review carefully.`,
+      );
+      warnings.push(
+        `${svc.name} grants IAM permissions that can escalate privileges. Review the granted actions carefully — iam:CreateRole and iam:PutRolePolicy can allow a learner to grant themselves broader permissions.`,
+      );
+    }
 
     if (!hasSample) {
       unsupportedCombinations.push(

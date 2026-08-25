@@ -380,13 +380,17 @@
       "category": "Networking",
       "resourceTypes": ["vpc", "subnet", "route-table", "internet-gateway"],
       "iamActionPrefix": "ec2:",
-      "officialSampleAvailable": false,
-      "officialSampleIds": [],
+      "officialSampleAvailable": true,
+      "officialSampleIds": [
+        "aws-allow-ec2-except-vms",
+        "aws-allow-by-type-partial",
+        "aws-limit-vm-sizes"
+      ],
       "riskCategory": "Medium",
       "costSensitivity": "Low",
       "identitySensitivity": "Low",
       "networkExposureSensitivity": "High",
-      "notes": "No dedicated official sample, but VPC actions are covered under ec2:* in existing samples."
+      "notes": "VPC actions use the ec2: prefix and are covered by official EC2 samples. Networking resources (VPCs, subnets, route tables, security groups) are managed via EC2 API actions."
     },
     {
       "id": "aws-rds",
@@ -502,17 +506,279 @@
     }
   ],
   "operations": [
-    { "id": "view", "label": "View", "description": "Read and inspect resources" },
-    { "id": "list", "label": "List", "description": "Enumerate resources" },
-    { "id": "create", "label": "Create", "description": "Provision new resources" },
-    { "id": "configure", "label": "Configure", "description": "Change settings and properties" },
-    { "id": "update", "label": "Update", "description": "Modify existing resources" },
-    { "id": "start", "label": "Start", "description": "Start or launch resources" },
-    { "id": "stop", "label": "Stop", "description": "Stop or shut down resources" },
-    { "id": "upload", "label": "Upload", "description": "Upload data or files" },
-    { "id": "download", "label": "Download", "description": "Download data or files" },
-    { "id": "delete", "label": "Delete", "description": "Remove resources" },
-    { "id": "tag", "label": "Tag", "description": "Apply or modify tags" },
-    { "id": "monitor", "label": "Monitor", "description": "View metrics and logs" }
+    {
+      "id": "view",
+      "label": "View",
+      "description": "Read and inspect resources",
+      "awsActions": {
+        "aws-ec2": ["ec2:DescribeInstances", "ec2:DescribeVolumes", "ec2:DescribeImages"],
+        "aws-s3": ["s3:GetObject", "s3:GetBucketLocation", "s3:GetBucketPolicy"],
+        "aws-iam": ["iam:GetUser", "iam:GetRole", "iam:GetPolicy", "iam:GetGroup"],
+        "aws-vpc": [
+          "ec2:DescribeVpcs",
+          "ec2:DescribeSubnets",
+          "ec2:DescribeRouteTables",
+          "ec2:DescribeSecurityGroups"
+        ],
+        "aws-rds": ["rds:DescribeDBInstances", "rds:DescribeDBClusters"],
+        "aws-lambda": ["lambda:GetFunction", "lambda:GetFunctionConfiguration"],
+        "aws-cloudformation": ["cloudformation:DescribeStacks", "cloudformation:GetTemplate"],
+        "aws-dynamodb": ["dynamodb:DescribeTable", "dynamodb:GetItem"],
+        "aws-eks": ["eks:DescribeCluster", "eks:ListNodeGroups"],
+        "aws-cloudwatch": ["cloudwatch:DescribeAlarms", "cloudwatch:GetMetricStatistics"],
+        "aws-kms": ["kms:DescribeKey", "kms:GetKeyPolicy"],
+        "aws-sagemaker": ["sagemaker:DescribeNotebookInstance", "sagemaker:DescribeTrainingJob"]
+      }
+    },
+    {
+      "id": "list",
+      "label": "List",
+      "description": "Enumerate resources",
+      "awsActions": {
+        "aws-ec2": [
+          "ec2:DescribeInstances",
+          "ec2:DescribeVolumes",
+          "ec2:DescribeImages",
+          "ec2:DescribeSecurityGroups",
+          "ec2:DescribeNetworkInterfaces"
+        ],
+        "aws-s3": ["s3:ListBucket", "s3:ListAllMyBuckets"],
+        "aws-iam": ["iam:ListUsers", "iam:ListRoles", "iam:ListPolicies", "iam:ListGroups"],
+        "aws-vpc": [
+          "ec2:DescribeVpcs",
+          "ec2:DescribeSubnets",
+          "ec2:DescribeRouteTables",
+          "ec2:DescribeInternetGateways"
+        ],
+        "aws-rds": ["rds:DescribeDBInstances", "rds:DescribeDBClusters"],
+        "aws-lambda": ["lambda:ListFunctions"],
+        "aws-cloudformation": ["cloudformation:ListStacks", "cloudformation:DescribeStacks"],
+        "aws-dynamodb": ["dynamodb:ListTables", "dynamodb:Scan"],
+        "aws-eks": ["eks:ListClusters", "eks:ListNodeGroups"],
+        "aws-cloudwatch": ["cloudwatch:DescribeAlarms", "logs:DescribeLogGroups"],
+        "aws-kms": ["kms:ListKeys", "kms:ListAliases"],
+        "aws-sagemaker": ["sagemaker:ListNotebookInstances", "sagemaker:ListTrainingJobs"]
+      }
+    },
+    {
+      "id": "create",
+      "label": "Create",
+      "description": "Provision new resources",
+      "awsActions": {
+        "aws-ec2": [
+          "ec2:RunInstances",
+          "ec2:CreateVolume",
+          "ec2:CreateSecurityGroup",
+          "ec2:CreateNetworkInterface"
+        ],
+        "aws-s3": ["s3:CreateBucket"],
+        "aws-iam": ["iam:CreateUser", "iam:CreateRole", "iam:CreatePolicy", "iam:CreateGroup"],
+        "aws-vpc": [
+          "ec2:CreateVpc",
+          "ec2:CreateSubnet",
+          "ec2:CreateRouteTable",
+          "ec2:CreateInternetGateway",
+          "ec2:CreateSecurityGroup"
+        ],
+        "aws-rds": ["rds:CreateDBInstance", "rds:CreateDBCluster"],
+        "aws-lambda": ["lambda:CreateFunction"],
+        "aws-cloudformation": ["cloudformation:CreateStack", "cloudformation:CreateChangeSet"],
+        "aws-dynamodb": ["dynamodb:CreateTable"],
+        "aws-eks": ["eks:CreateCluster", "eks:CreateNodeGroup"],
+        "aws-cloudwatch": ["cloudwatch:PutMetricAlarm", "logs:CreateLogGroup"],
+        "aws-kms": ["kms:CreateKey"],
+        "aws-sagemaker": ["sagemaker:CreateNotebookInstance", "sagemaker:CreateTrainingJob"]
+      }
+    },
+    {
+      "id": "configure",
+      "label": "Configure",
+      "description": "Change settings and properties",
+      "awsActions": {
+        "aws-ec2": ["ec2:ModifyInstanceAttribute", "ec2:ModifyVolumeAttribute"],
+        "aws-s3": ["s3:PutBucketPolicy", "s3:PutBucketVersioning", "s3:PutBucketAcl"],
+        "aws-iam": ["iam:PutUserPolicy", "iam:PutRolePolicy", "iam:PutGroupPolicy"],
+        "aws-vpc": ["ec2:ModifyVpcAttribute", "ec2:ModifySubnetAttribute", "ec2:ModifyRouteTable"],
+        "aws-rds": ["rds:ModifyDBInstance", "rds:ModifyDBCluster"],
+        "aws-lambda": ["lambda:UpdateFunctionConfiguration"],
+        "aws-cloudformation": ["cloudformation:UpdateStack"],
+        "aws-dynamodb": ["dynamodb:UpdateTable"],
+        "aws-eks": ["eks:UpdateClusterConfig", "eks:UpdateNodegroupConfig"],
+        "aws-cloudwatch": ["cloudwatch:PutMetricAlarm", "logs:PutRetentionPolicy"],
+        "aws-kms": ["kms:PutKeyPolicy"],
+        "aws-sagemaker": ["sagemaker:UpdateNotebookInstance", "sagemaker:UpdateEndpoint"]
+      }
+    },
+    {
+      "id": "update",
+      "label": "Update",
+      "description": "Modify existing resources",
+      "awsActions": {
+        "aws-ec2": ["ec2:ModifyInstanceAttribute", "ec2:ModifyVolume"],
+        "aws-s3": ["s3:PutObject", "s3:PutBucketPolicy"],
+        "aws-iam": ["iam:UpdateUser", "iam:UpdateRole", "iam:UpdateGroup"],
+        "aws-vpc": ["ec2:ModifyVpcAttribute", "ec2:ModifySubnetAttribute"],
+        "aws-rds": ["rds:ModifyDBInstance"],
+        "aws-lambda": ["lambda:UpdateFunctionCode", "lambda:UpdateFunctionConfiguration"],
+        "aws-cloudformation": ["cloudformation:UpdateStack"],
+        "aws-dynamodb": ["dynamodb:UpdateItem", "dynamodb:UpdateTable"],
+        "aws-eks": ["eks:UpdateClusterConfig"],
+        "aws-cloudwatch": ["cloudwatch:PutMetricAlarm"],
+        "aws-kms": ["kms:UpdateKeyDescription"],
+        "aws-sagemaker": ["sagemaker:UpdateNotebookInstance"]
+      }
+    },
+    {
+      "id": "start",
+      "label": "Start",
+      "description": "Start or launch resources",
+      "awsActions": {
+        "aws-ec2": ["ec2:StartInstances"],
+        "aws-s3": [],
+        "aws-iam": [],
+        "aws-vpc": [],
+        "aws-rds": ["rds:StartDBInstance", "rds:StartDBCluster"],
+        "aws-lambda": ["lambda:InvokeFunction"],
+        "aws-cloudformation": [],
+        "aws-dynamodb": [],
+        "aws-eks": [],
+        "aws-cloudwatch": [],
+        "aws-kms": ["kms:EnableKey"],
+        "aws-sagemaker": ["sagemaker:StartNotebookInstance", "sagemaker:StartTrainingJob"]
+      }
+    },
+    {
+      "id": "stop",
+      "label": "Stop",
+      "description": "Stop or shut down resources",
+      "awsActions": {
+        "aws-ec2": ["ec2:StopInstances", "ec2:TerminateInstances"],
+        "aws-s3": [],
+        "aws-iam": [],
+        "aws-vpc": [],
+        "aws-rds": ["rds:StopDBInstance", "rds:StopDBCluster"],
+        "aws-lambda": [],
+        "aws-cloudformation": [],
+        "aws-dynamodb": [],
+        "aws-eks": [],
+        "aws-cloudwatch": [],
+        "aws-kms": ["kms:DisableKey"],
+        "aws-sagemaker": ["sagemaker:StopNotebookInstance", "sagemaker:StopTrainingJob"]
+      }
+    },
+    {
+      "id": "upload",
+      "label": "Upload",
+      "description": "Upload data or files",
+      "awsActions": {
+        "aws-ec2": ["ec2:ImportImage", "ec2:ImportSnapshot"],
+        "aws-s3": ["s3:PutObject"],
+        "aws-iam": [],
+        "aws-vpc": [],
+        "aws-rds": [],
+        "aws-lambda": ["lambda:UpdateFunctionCode"],
+        "aws-cloudformation": [],
+        "aws-dynamodb": ["dynamodb:PutItem", "dynamodb:BatchWriteItem"],
+        "aws-eks": [],
+        "aws-cloudwatch": ["logs:PutLogEvents"],
+        "aws-kms": [],
+        "aws-sagemaker": []
+      }
+    },
+    {
+      "id": "download",
+      "label": "Download",
+      "description": "Download data or files",
+      "awsActions": {
+        "aws-ec2": ["ec2:ExportImage", "ec2:CreateSnapshot"],
+        "aws-s3": ["s3:GetObject"],
+        "aws-iam": [],
+        "aws-vpc": [],
+        "aws-rds": [],
+        "aws-lambda": ["lambda:GetFunction"],
+        "aws-cloudformation": ["cloudformation:GetTemplate"],
+        "aws-dynamodb": ["dynamodb:GetItem", "dynamodb:Query", "dynamodb:Scan"],
+        "aws-eks": [],
+        "aws-cloudwatch": ["logs:GetLogEvents", "cloudwatch:GetMetricStatistics"],
+        "aws-kms": [],
+        "aws-sagemaker": []
+      }
+    },
+    {
+      "id": "delete",
+      "label": "Delete",
+      "description": "Remove resources",
+      "awsActions": {
+        "aws-ec2": [
+          "ec2:TerminateInstances",
+          "ec2:DeleteVolume",
+          "ec2:DeleteSecurityGroup",
+          "ec2:DeleteNetworkInterface"
+        ],
+        "aws-s3": ["s3:DeleteObject", "s3:DeleteBucket"],
+        "aws-iam": ["iam:DeleteUser", "iam:DeleteRole", "iam:DeletePolicy", "iam:DeleteGroup"],
+        "aws-vpc": [
+          "ec2:DeleteVpc",
+          "ec2:DeleteSubnet",
+          "ec2:DeleteRouteTable",
+          "ec2:DeleteInternetGateway",
+          "ec2:DeleteSecurityGroup"
+        ],
+        "aws-rds": ["rds:DeleteDBInstance", "rds:DeleteDBCluster"],
+        "aws-lambda": ["lambda:DeleteFunction"],
+        "aws-cloudformation": ["cloudformation:DeleteStack"],
+        "aws-dynamodb": ["dynamodb:DeleteTable", "dynamodb:DeleteItem"],
+        "aws-eks": ["eks:DeleteCluster", "eks:DeleteNodegroup"],
+        "aws-cloudwatch": ["cloudwatch:DeleteAlarms", "logs:DeleteLogGroup"],
+        "aws-kms": ["kms:ScheduleKeyDeletion"],
+        "aws-sagemaker": ["sagemaker:DeleteNotebookInstance", "sagemaker:StopTrainingJob"]
+      }
+    },
+    {
+      "id": "tag",
+      "label": "Tag",
+      "description": "Apply or modify tags",
+      "awsActions": {
+        "aws-ec2": ["ec2:CreateTags", "ec2:DeleteTags"],
+        "aws-s3": ["s3:PutObjectTagging", "s3:DeleteObjectTagging"],
+        "aws-iam": ["iam:TagUser", "iam:TagRole", "iam:UntagUser", "iam:UntagRole"],
+        "aws-vpc": ["ec2:CreateTags", "ec2:DeleteTags"],
+        "aws-rds": ["rds:AddTagsToResource", "rds:RemoveTagsFromResource"],
+        "aws-lambda": ["lambda:TagResource", "lambda:UntagResource"],
+        "aws-cloudformation": ["cloudformation:TagResource", "cloudformation:UntagResource"],
+        "aws-dynamodb": ["dynamodb:TagResource", "dynamodb:UntagResource"],
+        "aws-eks": ["eks:TagResource", "eks:UntagResource"],
+        "aws-cloudwatch": ["cloudwatch:TagResource", "cloudwatch:UntagResource"],
+        "aws-kms": ["kms:TagResource", "kms:UntagResource"],
+        "aws-sagemaker": ["sagemaker:AddTags", "sagemaker:DeleteTags"]
+      }
+    },
+    {
+      "id": "monitor",
+      "label": "Monitor",
+      "description": "View metrics and logs",
+      "awsActions": {
+        "aws-ec2": ["ec2:MonitorInstances", "ec2:DescribeInstanceStatus"],
+        "aws-s3": ["s3:GetBucketMetricsConfiguration"],
+        "aws-iam": [],
+        "aws-vpc": ["ec2:DescribeNetworkAcls", "ec2:DescribeFlowLogs"],
+        "aws-rds": ["rds:DescribeEvents", "rds:ListTagsForResource"],
+        "aws-lambda": ["lambda:GetEventSourceMapping"],
+        "aws-cloudformation": [
+          "cloudformation:DescribeStackEvents",
+          "cloudformation:DescribeStackResources"
+        ],
+        "aws-dynamodb": ["dynamodb:DescribeTable"],
+        "aws-eks": ["eks:DescribeCluster", "eks:DescribeUpdate"],
+        "aws-cloudwatch": [
+          "cloudwatch:DescribeAlarms",
+          "cloudwatch:GetMetricData",
+          "logs:GetLogEvents",
+          "logs:FilterLogEvents"
+        ],
+        "aws-kms": [],
+        "aws-sagemaker": ["sagemaker:DescribeTrainingJob", "sagemaker:DescribeNotebookInstance"]
+      }
+    }
   ]
 }
