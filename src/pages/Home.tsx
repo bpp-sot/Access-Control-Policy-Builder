@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import sourceManifest from '@data/source-manifest.json';
+import { APP_INFO, APP_VERSION } from '@/lib/app-info';
 
 const features = [
   {
@@ -44,8 +45,10 @@ export default function Home() {
   return (
     <div>
       <div className="hero">
-        <h1>Skillable Access Control Policy Builder</h1>
-        <p>
+        <div className="hero-eyebrow">{APP_INFO.organisation}</div>
+        <h1>{APP_INFO.name}</h1>
+        <p className="hero-tagline">{APP_INFO.tagline}</p>
+        <p className="hero-description">
           Generate production-ready Access Control Policies for Microsoft Azure and Amazon Web
           Services without manually writing policy JSON. Every rule is traced to official Skillable
           samples.
@@ -57,6 +60,10 @@ export default function Home() {
           <Link to="/explorer" className="btn btn-secondary btn-lg">
             Browse Examples
           </Link>
+        </div>
+        <div className="hero-version">
+          <span className="badge badge-version">{APP_VERSION}</span>
+          <span className="text-muted text-xs">Build: {APP_INFO.buildLabel}</span>
         </div>
       </div>
 

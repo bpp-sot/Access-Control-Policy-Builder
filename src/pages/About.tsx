@@ -1,4 +1,5 @@
 import sourceManifest from '@data/source-manifest.json';
+import { APP_INFO, APP_VERSION } from '@/lib/app-info';
 
 export default function About() {
   return (
@@ -9,14 +10,55 @@ export default function About() {
       <div className="card mb-4">
         <div className="card-header">Application</div>
         <p className="text-sm text-secondary mb-2">
-          The <strong>Skillable Access Control Policy Builder</strong> is a client-side static web
-          application that helps Skillable lab authors configure and generate Access Control
-          Policies for Microsoft Azure and Amazon Web Services without manually writing policy JSON.
+          <strong>{APP_INFO.name}</strong> &mdash; <em>{APP_INFO.tagline}</em> &mdash; is a
+          client-side static web application that helps Skillable lab authors configure and generate
+          Access Control Policies for Microsoft Azure and Amazon Web Services without manually
+          writing policy JSON.
         </p>
         <p className="text-sm text-secondary">
           The application runs entirely in the browser. No server, database, authentication, or
           cloud credentials are required. All data is stored locally in the browser or exported as
           JSON files.
+        </p>
+      </div>
+
+      <div className="card mb-4">
+        <div className="card-header">Version &amp; Attribution</div>
+        <table className="table">
+          <tbody>
+            <tr>
+              <td className="font-semibold">Product Name</td>
+              <td>{APP_INFO.name}</td>
+            </tr>
+            <tr>
+              <td className="font-semibold">Tagline</td>
+              <td>{APP_INFO.tagline}</td>
+            </tr>
+            <tr>
+              <td className="font-semibold">Version</td>
+              <td>
+                <span className="badge badge-version">{APP_VERSION}</span>{' '}
+                <span className="text-muted text-xs">(Build: {APP_INFO.buildLabel})</span>
+              </td>
+            </tr>
+            <tr>
+              <td className="font-semibold">Author</td>
+              <td>{APP_INFO.author}</td>
+            </tr>
+            <tr>
+              <td className="font-semibold">Organisation</td>
+              <td>{APP_INFO.organisation}</td>
+            </tr>
+            <tr>
+              <td className="font-semibold">Package Version</td>
+              <td>1.1.0</td>
+            </tr>
+          </tbody>
+        </table>
+        <p className="text-sm text-muted mt-3">
+          The version number is the quickest way to confirm which build of the tool you are running.
+          It is shown in the page footer on every screen and on the home page hero. Bump the version
+          in <code>src/lib/app-info.ts</code> when releasing a new build.
         </p>
       </div>
 

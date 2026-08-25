@@ -1,5 +1,6 @@
 import { Routes, Route, NavLink, Link } from 'react-router-dom';
 import { useTheme } from './lib/theme';
+import { APP_INFO, APP_VERSION } from './lib/app-info';
 import Home from './pages/Home';
 import NewPolicy from './pages/NewPolicy';
 import Projects from './pages/Projects';
@@ -25,9 +26,12 @@ export default function App() {
   return (
     <div className="app-layout">
       <header className="app-header">
-        <Link to="/" className="logo">
-          <span className="logo-icon">AC</span>
-          <span>Policy Builder</span>
+        <Link to="/" className="logo" title={APP_INFO.tagline}>
+          <span className="logo-icon">{APP_INFO.monogram}</span>
+          <span className="logo-text">
+            <span className="logo-name">{APP_INFO.name}</span>
+            <span className="logo-tagline">{APP_INFO.tagline}</span>
+          </span>
         </Link>
         <nav className="app-nav">
           {navItems.map((item) => (
@@ -68,8 +72,16 @@ export default function App() {
       </main>
 
       <footer className="app-footer">
-        <p>
-          Skillable Access Control Policy Builder &mdash; Source:{' '}
+        <div className="app-footer-brand">
+          <span className="app-footer-name">{APP_INFO.name}</span>
+          <span className="badge badge-version" title={`Build: ${APP_INFO.buildLabel}`}>
+            {APP_VERSION}
+          </span>
+        </div>
+        <p className="app-footer-tagline">{APP_INFO.tagline}</p>
+        <p className="app-footer-meta">
+          &copy; {APP_INFO.organisation} &mdash; Authored by{' '}
+          <span className="app-footer-author">{APP_INFO.author}</span> &mdash; Evidence source:{' '}
           <a href={sourceManifest.sourceRepository.url} target="_blank" rel="noopener noreferrer">
             {sourceManifest.sourceRepository.name}
           </a>{' '}
