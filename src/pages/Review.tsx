@@ -116,6 +116,56 @@ export default function Review() {
         </div>
       )}
 
+      {/* Custom additions (Professional Mode — Classification F) */}
+      {policy.statements.some((s) => s.evidence.classification === 'F') && (
+        <div className="card mb-4">
+          <div className="card-header">
+            Custom Additions (Professional Mode){' '}
+            <span className="evidence-badge evidence-F">
+              {policy.statements.filter((s) => s.evidence.classification === 'F').length} Class F
+            </span>
+          </div>
+          <div className="alert alert-warning mb-3">
+            <span>{'\u{26A0}'}</span>
+            <div>
+              The following fragments were supplied by the author and are <strong>not</strong>{' '}
+              derived from official Skillable samples. They require manual review for correctness,
+              least privilege, and Skillable compatibility before use.
+            </div>
+          </div>
+          {policy.statements
+            .filter((s) => s.evidence.classification === 'F')
+            .map((stmt) => (
+              <div
+                key={stmt.id}
+                className="mb-3"
+                style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '12px' }}
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <div className="font-semibold text-sm">{stmt.description}</div>
+                  <button
+                    className="btn btn-ghost btn-sm"
+                    onClick={() => setShowStatement(showStatement === stmt.id ? null : stmt.id)}
+                  >
+                    {showStatement === stmt.id ? 'Hide' : 'Show'} JSON
+                  </button>
+                </div>
+                <p className="text-sm text-secondary mb-2">{stmt.plainEnglish}</p>
+                {stmt.warnings.map((w, i) => (
+                  <div key={i} className="text-xs" style={{ color: 'var(--accent-warning)' }}>
+                    {'\u{26A0}'} {w}
+                  </div>
+                ))}
+                {showStatement === stmt.id && (
+                  <div className="code-block mt-2">
+                    <pre>{JSON.stringify(stmt.jsonFragment, null, 2)}</pre>
+                  </div>
+                )}
+              </div>
+            ))}
+        </div>
+      )}
+
       {/* Policy JSON */}
       <div className="card mb-4">
         <div className="flex items-center justify-between mb-4">

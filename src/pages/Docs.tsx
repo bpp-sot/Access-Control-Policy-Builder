@@ -155,6 +155,67 @@ export default function Docs() {
       </div>
 
       <div className="card mb-4">
+        <div className="card-header">Professional Mode</div>
+        <p className="text-sm text-secondary mb-2">
+          Professional Mode is an optional feature available on the final wizard step (Review). It
+          allows experienced authors to append custom JSON fragments to the compiled policy when the
+          wizard does not generate a specific condition or IAM statement they need.
+        </p>
+        <p className="text-sm text-secondary mb-2">
+          Custom additions are classified as{' '}
+          <strong>Classification F — User-supplied custom rule</strong>. They are{' '}
+          <strong>never</strong> treated as official Skillable samples, and the application does not
+          invent cloud policy syntax from plain-English prose.
+        </p>
+        <p className="text-sm text-secondary mb-2">
+          <strong>Accepted input formats:</strong>
+        </p>
+        <ul className="text-sm text-secondary" style={{ paddingLeft: '20px' }}>
+          <li>
+            <strong>AWS:</strong> A single IAM statement object, an array of statement objects, or a
+            full policy document (only the <code>Statement</code> array is extracted).
+          </li>
+          <li>
+            <strong>Azure:</strong> A single Azure Policy condition object, an array of condition
+            objects, or a full Azure Policy definition (only the <code>anyOf</code> array is
+            extracted).
+          </li>
+        </ul>
+        <p className="text-sm text-secondary mb-2">
+          <strong>Semantic validation:</strong>
+        </p>
+        <ul className="text-sm text-secondary" style={{ paddingLeft: '20px' }}>
+          <li>
+            AWS statements must contain an <code>Effect</code> field (<code>Allow</code> or{' '}
+            <code>Deny</code>) and at least one of <code>Action</code> or <code>NotAction</code>.
+          </li>
+          <li>
+            Azure conditions must contain a <code>field</code> property and at least one comparator
+            operator (e.g. <code>equals</code>, <code>in</code>, <code>like</code>,{' '}
+            <code>exists</code>).
+          </li>
+        </ul>
+        <div className="alert alert-warning mt-3">
+          <span>{'\u{26A0}'}</span>
+          <div>
+            Custom fragments are <strong>appended</strong> to the generated policy, never replacing
+            it wholesale. The original generated statements, AWS policy <code>Version</code>, and
+            Azure whitelist structure are preserved. All custom additions require manual review for
+            correctness, least privilege, and Skillable compatibility before use.
+          </div>
+        </div>
+        <div className="alert alert-info mt-3">
+          <span>{'\u{2139}'}</span>
+          <div>
+            <strong>Secret detection</strong> is applied to all custom JSON input. If a potential
+            credential (AWS access key, private key, password assignment, JWT, connection string,
+            etc.) is detected, a security risk is surfaced and the author is warned to remove it
+            before submitting the policy.
+          </div>
+        </div>
+      </div>
+
+      <div className="card mb-4">
         <div className="card-header">Source Repository</div>
         <table className="table">
           <tbody>

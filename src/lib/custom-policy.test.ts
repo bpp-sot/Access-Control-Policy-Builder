@@ -124,12 +124,98 @@ describe('parseCustomPolicyJson', () => {
     expect(result.secretWarnings).toEqual([]);
   });
 
-  it('treats an object without provider-specific wrapper as a single fragment', () => {
+  it('accepts a single AWS statement object without a provider-specific wrapper', () => {
     const result = parseCustomPolicyJson(
-      JSON.stringify({ customField: 'value', nested: { a: 1 } }),
+      JSON.stringify({ Action: 'iam:ListRoles', Resource: '*', Effect: 'Allow', Sid: 'Custom' }),
       'aws',
     );
     expect(result.valid).toBe(true);
     expect(result.fragments.length).toBe(1);
+  });
+
+  // ─── Semantic validation ─────────────────────────────────────────────
+
+  it('rejects an AWS statement without Effect', () => {
+    const result = parseCustomPolicyJson(
+      JSON.stringify({ Action: 's3:GetObject', Resource: '*' }),
+      'aws',
+    );
+    expect(result.valid).toBe(false);
+    expect(result.error).toContain('Effect');
+  });
+
+  it('rejects an AWS statement with an invalid Effect value', () => {
+    const result = parseCustomPolicyJson(
+      JSON.stringify({ Action: 's3:GetObject', Resource: '*', Effect: 'Maybe' }),
+      'aws',
+    );
+    expect(result.valid).toBe(false);
+    expect(result.error).toContain('Effect');
+  });
+
+  it('rejects an AWS statement without Action or NotAction', () => {
+    const result = parseCustomPolicyJson(JSON.stringify({ Effect: 'Allow', Resource: '*' }), 'aws');
+    expect(result.valid).toBe(false);
+    expect(result.error).toContain('Action');
+  });
+
+  it('accepts an AWS statement with NotAction instead of Action', () => {
+    const result = parseCustomPolicyJson(
+      JSON.stringify({ NotAction: 's3:DeleteBucket', Resource: '*', Effect: 'Deny' }),
+      'aws',
+    );
+    expect(result.valid).toBe(true);
+    expect(result.fragments.length).toBe(1);
+  });
+
+  it('rejects an Azure condition without field', () => {
+    const result = parseCustomPolicyJson(
+      JSON.stringify({ equals: 'Microsoft.Storage/storageAccounts' }),
+      'azure',
+    );
+    expect(result.valid).toBe(false);
+    expect(result.error).toContain('field');
+  });
+
+  it('rejects an Azure condition with an empty field value', () => {
+    const result = parseCustomPolicyJson(JSON.stringify({ field: '   ', equals: 'test' }), 'azure');
+    expect(result.valid).toBe(false);
+    expect(result.error).toContain('field');
+  });
+
+  it('rejects an Azure condition without a comparator operator', () => {
+    const result = parseCustomPolicyJson(JSON.stringify({ field: 'type' }), 'azure');
+    expect(result.valid).toBe(false);
+    expect(result.error).toContain('comparator');
+  });
+
+  it('accepts an Azure condition with the "in" comparator', () => {
+    const result = parseCustomPolicyJson(
+      JSON.stringify({ field: 'location', in: ['eastus', 'westus'] }),
+      'azure',
+    );
+    expect(result.valid).toBe(true);
+    expect(result.fragments.length).toBe(1);
+  });
+
+  it('accepts an Azure condition with the "exists" comparator', () => {
+    const result = parseCustomPolicyJson(
+      JSON.stringify({ field: 'tags.environment', exists: true }),
+      'azure',
+    );
+    expect(result.valid).toBe(true);
+    expect(result.fragments.length).toBe(1);
+  });
+
+  it('reports the fragment index in semantic validation errors', () => {
+    const result = parseCustomPolicyJson(
+      JSON.stringify([
+        { Action: 's3:GetObject', Resource: '*', Effect: 'Allow' },
+        { Resource: '*', Effect: 'Allow' },
+      ]),
+      'aws',
+    );
+    expect(result.valid).toBe(false);
+    expect(result.error).toContain('statement 2');
   });
 });
