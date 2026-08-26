@@ -444,6 +444,13 @@ a:hover {
   resize: vertical;
 }
 
+.form-textarea.professional-json {
+  min-height: 180px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
 .form-hint {
   font-size: 0.8rem;
   color: var(--text-muted);

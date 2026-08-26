@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useWizard } from '@/lib/wizard-context';
 import { detectSecrets } from '@/lib/secret-detector';
+import { parseCustomPolicyJson } from '@/lib/custom-policy';
 import type { LearningOutcome, LearnerTask, ServiceSelection, ServiceDependency } from '@/types';
 import serviceCatalogue from '@data/service-catalogue.json';
 import regionsSkus from '@data/regions-skus.json';
@@ -1486,7 +1487,10 @@ function NameInput({
 // ─── Step 8: Review ──────────────────────────────────────────────────────
 
 export function Step8Review() {
-  const { wizard } = useWizard();
+  const { wizard, setWizard } = useWizard();
+  const customParse = parseCustomPolicyJson(wizard.customJson, wizard.provider);
+  const hasCustomJson = wizard.customJson.trim().length > 0;
+
   return (
     <div>
       <div className="card">
@@ -1572,6 +1576,66 @@ export function Step8Review() {
             </table>
           </div>
         )}
+      </div>
+
+      <div className="card mt-4">
+        <div className="card-header">Professional Mode</div>
+        <p className="text-sm text-secondary mb-3">
+          Optional. Append author-supplied JSON to the compiled policy. This is for experienced
+          authors who need a condition or IAM statement the wizard does not generate. Content is
+          classified as <strong>F — User-supplied custom rule</strong> and is never treated as an
+          official Skillable sample.
+        </p>
+        <div className="alert alert-info mb-3">
+          <span>{'\u{2139}'}</span>
+          <div>
+            Paste <strong>valid JSON only</strong> — a single Azure Policy condition, a single AWS
+            IAM statement, an array of those objects, or a full policy document from which the
+            relevant fragments can be extracted. Plain English is not compiled into policy syntax.
+            Do not enter secrets or credentials.
+          </div>
+        </div>
+        <label className="form-label" htmlFor="professional-json">
+          Custom policy JSON
+        </label>
+        <textarea
+          id="professional-json"
+          className="form-textarea professional-json"
+          spellCheck={false}
+          placeholder={
+            wizard.provider === 'aws'
+              ? '{\n  "Action": "logs:CreateLogGroup",\n  "Resource": "*",\n  "Effect": "Allow"\n}'
+              : '{\n  "field": "type",\n  "equals": "Microsoft.Resources/subscriptions/resourceGroups"\n}'
+          }
+          value={wizard.customJson}
+          onChange={(e) => setWizard((prev) => ({ ...prev, customJson: e.target.value }))}
+        />
+        <div className="form-hint">
+          Empty is fine. Invalid JSON is reported here and omitted from the compiled policy rather
+          than breaking generation.
+        </div>
+        {hasCustomJson && customParse.valid && (
+          <div className="alert alert-success mt-3">
+            <span>{'\u2713'}</span>
+            <div>
+              JSON is valid. {customParse.fragments.length} fragment
+              {customParse.fragments.length === 1 ? '' : 's'} will be appended to the compiled
+              policy as Classification F.
+            </div>
+          </div>
+        )}
+        {hasCustomJson && !customParse.valid && (
+          <div className="alert alert-danger mt-3">
+            <span>{'\u{26A0}'}</span>
+            <div>{customParse.error}</div>
+          </div>
+        )}
+        {customParse.secretWarnings.map((warning) => (
+          <div key={warning} className="alert alert-danger mt-3">
+            <span>{'\u{26A0}'}</span>
+            <div>{warning}</div>
+          </div>
+        ))}
       </div>
     </div>
   );

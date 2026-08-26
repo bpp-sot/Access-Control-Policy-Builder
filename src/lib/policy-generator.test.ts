@@ -804,3 +804,173 @@ describe('generatePolicy — Azure VM dependency awareness', () => {
     expect(policy.securityRisks.some((r) => r.includes('Missing required dependency'))).toBe(false);
   });
 });
+
+describe('generatePolicy — Professional Mode (custom JSON)', () => {
+  it('produces no custom additions when customJson is empty', () => {
+    const wizard = makeWizard({ provider: 'aws', customJson: '' });
+    const policy = generatePolicy(wizard);
+    expect(policy.statements.some((s) => s.evidence.classification === 'F')).toBe(false);
+    expect(policy.warnings.some((w) => w.includes('Professional Mode'))).toBe(false);
+  });
+
+  it('merges a valid AWS IAM statement object', () => {
+    const wizard = makeWizard({
+      provider: 'aws',
+      customJson: JSON.stringify({
+        Action: 'logs:CreateLogGroup',
+        Resource: '*',
+        Effect: 'Allow',
+      }),
+    });
+    const policy = generatePolicy(wizard);
+    const json = policy.policyJson as { Version: string; Statement: unknown[] };
+    expect(json.Version).toBe('2012-10-17');
+    expect(json.Statement.length).toBeGreaterThan(0);
+    const customStmts = policy.statements.filter((s) => s.evidence.classification === 'F');
+    expect(customStmts.length).toBe(1);
+    expect(customStmts[0].evidence.classification).toBe('F');
+  });
+
+  it('merges a valid AWS IAM statement array', () => {
+    const wizard = makeWizard({
+      provider: 'aws',
+      customJson: JSON.stringify([
+        { Action: 'logs:CreateLogGroup', Resource: '*', Effect: 'Allow' },
+        { Action: 'logs:DeleteLogGroup', Resource: '*', Effect: 'Allow' },
+      ]),
+    });
+    const policy = generatePolicy(wizard);
+    const customStmts = policy.statements.filter((s) => s.evidence.classification === 'F');
+    expect(customStmts.length).toBe(2);
+  });
+
+  it('preserves AWS Version 2012-10-17 when custom JSON is present', () => {
+    const wizard = makeWizard({
+      provider: 'aws',
+      customJson: JSON.stringify({ Action: 's3:GetObject', Resource: '*', Effect: 'Allow' }),
+    });
+    const policy = generatePolicy(wizard);
+    const json = policy.policyJson as { Version: string };
+    expect(json.Version).toBe('2012-10-17');
+  });
+
+  it('extracts Statement from a full AWS policy document', () => {
+    const wizard = makeWizard({
+      provider: 'aws',
+      customJson: JSON.stringify({
+        Version: '2012-10-17',
+        Statement: [{ Action: 's3:ListBucket', Resource: 'arn:aws:s3:::example', Effect: 'Allow' }],
+      }),
+    });
+    const policy = generatePolicy(wizard);
+    const customStmts = policy.statements.filter((s) => s.evidence.classification === 'F');
+    expect(customStmts.length).toBe(1);
+  });
+
+  it('rejects invalid JSON and surfaces a warning without throwing', () => {
+    const wizard = makeWizard({ provider: 'aws', customJson: '{ not valid json' });
+    const policy = generatePolicy(wizard);
+    expect(policy.warnings.some((w) => w.includes('not applied'))).toBe(true);
+    expect(policy.securityRisks.some((r) => r.includes('failed validation'))).toBe(true);
+    expect(policy.statements.some((s) => s.evidence.classification === 'F')).toBe(false);
+  });
+
+  it('rejects a primitive custom JSON value', () => {
+    const wizard = makeWizard({ provider: 'aws', customJson: '"hello"' });
+    const policy = generatePolicy(wizard);
+    expect(policy.warnings.some((w) => w.includes('not applied'))).toBe(true);
+  });
+
+  it('merges a valid Azure Policy condition object', () => {
+    const wizard = makeWizard({
+      provider: 'azure',
+      customJson: JSON.stringify({
+        field: 'type',
+        equals: 'Microsoft.Resources/subscriptions/resourceGroups',
+      }),
+    });
+    const policy = generatePolicy(wizard);
+    const customStmts = policy.statements.filter((s) => s.evidence.classification === 'F');
+    expect(customStmts.length).toBe(1);
+    const json = policy.policyJson as { if: { not: { anyOf: unknown[] } } };
+    expect(json.if.not.anyOf.length).toBeGreaterThan(0);
+  });
+
+  it('extracts anyOf from a full Azure Policy document', () => {
+    const wizard = makeWizard({
+      provider: 'azure',
+      customJson: JSON.stringify({
+        if: {
+          not: {
+            anyOf: [
+              { field: 'type', equals: 'Microsoft.Storage/storageAccounts' },
+              { field: 'location', equals: 'eastus' },
+            ],
+          },
+        },
+        then: { effect: 'Deny' },
+      }),
+    });
+    const policy = generatePolicy(wizard);
+    const customStmts = policy.statements.filter((s) => s.evidence.classification === 'F');
+    expect(customStmts.length).toBe(2);
+  });
+
+  it('adds a manual-review warning when custom fragments are merged', () => {
+    const wizard = makeWizard({
+      provider: 'aws',
+      customJson: JSON.stringify({ Action: 's3:GetObject', Resource: '*', Effect: 'Allow' }),
+    });
+    const policy = generatePolicy(wizard);
+    expect(policy.warnings.some((w) => w.includes('Classification F'))).toBe(true);
+  });
+
+  it('flags secrets detected in custom JSON as a security risk', () => {
+    const wizard = makeWizard({
+      provider: 'aws',
+      customJson: JSON.stringify({
+        Action: 's3:GetObject',
+        Resource: '*',
+        Effect: 'Allow',
+        Comment: 'AKIAIOSFODNN7EXAMPLE',
+      }),
+    });
+    const policy = generatePolicy(wizard);
+    expect(policy.securityRisks.some((r) => r.includes('secrets'))).toBe(true);
+  });
+
+  it('does not replace the generated AWS policy wholesale', () => {
+    const wizard = makeWizard({
+      provider: 'aws',
+      services: [
+        {
+          serviceId: 'aws-ec2',
+          operations: ['create'],
+          customResourceTypes: [],
+          allowedSkus: [],
+          allowedNames: [],
+        },
+      ],
+      customJson: JSON.stringify({ Action: 's3:GetObject', Resource: '*', Effect: 'Allow' }),
+    });
+    const policy = generatePolicy(wizard);
+    const json = policy.policyJson as { Version: string; Statement: Array<{ Action: string }> };
+    // Generated EC2 statements should still be present alongside the custom one
+    expect(json.Statement.length).toBeGreaterThan(1);
+    const actions = json.Statement.flatMap((s) =>
+      Array.isArray(s.Action) ? s.Action : [s.Action],
+    );
+    expect(actions.some((a) => typeof a === 'string' && a.startsWith('ec2:'))).toBe(true);
+    expect(actions.some((a) => a === 's3:GetObject')).toBe(true);
+  });
+
+  it('counts Classification F in the evidence summary', () => {
+    const wizard = makeWizard({
+      provider: 'aws',
+      customJson: JSON.stringify({ Action: 's3:GetObject', Resource: '*', Effect: 'Allow' }),
+    });
+    const policy = generatePolicy(wizard);
+    const fCount = policy.statements.filter((s) => s.evidence.classification === 'F').length;
+    expect(fCount).toBe(1);
+  });
+});

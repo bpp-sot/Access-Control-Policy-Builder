@@ -9,6 +9,7 @@ import azurePatterns from '@data/azure-patterns.json';
 import awsPatterns from '@data/aws-patterns.json';
 import serviceCatalogue from '@data/service-catalogue.json';
 import type { AzurePattern, AwsPattern, OperationDef, ServiceCatalogueEntry } from '@/types';
+import { parseCustomPolicyJson } from '@/lib/custom-policy';
 
 const azurePatternList = azurePatterns.patterns as AzurePattern[];
 const awsPatternList = awsPatterns.patterns as AwsPattern[];
@@ -505,6 +506,15 @@ function generateAzurePolicy(wizard: WizardState): GeneratedPolicy {
     );
   }
 
+  applyCustomAzureFragments(
+    wizard.customJson,
+    anyOfConditions,
+    statements,
+    warnings,
+    securityRisks,
+    () => stmtId('azure', ++n),
+  );
+
   // Build the final policy JSON using whitelist model
   const policyJson =
     anyOfConditions.length > 0
@@ -946,6 +956,15 @@ function generateAwsPolicy(wizard: WizardState): GeneratedPolicy {
     });
   }
 
+  applyCustomAwsFragments(
+    wizard.customJson,
+    iamStatements,
+    statements,
+    warnings,
+    securityRisks,
+    () => stmtId('aws', ++n),
+  );
+
   const policyJson = {
     Version: '2012-10-17',
     Statement: iamStatements,
@@ -960,6 +979,114 @@ function generateAwsPolicy(wizard: WizardState): GeneratedPolicy {
     securityRisks,
     evidenceSummary: countClassifications(statements),
   };
+}
+
+function applyCustomAzureFragments(
+  raw: string,
+  anyOfConditions: unknown[],
+  statements: GeneratedStatement[],
+  warnings: string[],
+  securityRisks: string[],
+  nextId: () => string,
+): void {
+  const parsed = parseCustomPolicyJson(raw, 'azure');
+  if (!raw.trim()) return;
+
+  if (!parsed.valid) {
+    warnings.push(`Professional Mode custom JSON was not applied. ${parsed.error}`);
+    securityRisks.push('Custom JSON failed validation and was omitted from the compiled policy.');
+    return;
+  }
+
+  warnings.push(...parsed.secretWarnings);
+  if (parsed.secretWarnings.length > 0) {
+    securityRisks.push(
+      'Potential secrets were detected in Professional Mode custom JSON. Remove credentials before submitting the policy.',
+    );
+  }
+
+  for (const fragment of parsed.fragments) {
+    anyOfConditions.push(fragment);
+    statements.push({
+      id: nextId(),
+      description: 'User-supplied Azure Policy fragment (Professional Mode)',
+      plainEnglish:
+        'A custom Azure Policy condition supplied by the author was appended to the generated whitelist. This is user-supplied content (Classification F) and is not validated against official Skillable samples.',
+      evidence: makeEvidence(
+        'F',
+        'User-supplied custom rule',
+        null,
+        null,
+        'Author-provided JSON fragment merged into the Azure Policy anyOf whitelist by Professional Mode. Not derived from official Skillable samples.',
+        'application-generated',
+        'low',
+      ),
+      jsonFragment: fragment,
+      warnings: [
+        'Classification F — user-supplied. Review this fragment for correctness, least privilege, and Skillable compatibility before use.',
+      ],
+    });
+  }
+
+  if (parsed.fragments.length > 0) {
+    warnings.push(
+      `${parsed.fragments.length} Professional Mode custom Azure condition(s) were appended to the compiled policy. These are Classification F and require manual review.`,
+    );
+  }
+}
+
+function applyCustomAwsFragments(
+  raw: string,
+  iamStatements: unknown[],
+  statements: GeneratedStatement[],
+  warnings: string[],
+  securityRisks: string[],
+  nextId: () => string,
+): void {
+  const parsed = parseCustomPolicyJson(raw, 'aws');
+  if (!raw.trim()) return;
+
+  if (!parsed.valid) {
+    warnings.push(`Professional Mode custom JSON was not applied. ${parsed.error}`);
+    securityRisks.push('Custom JSON failed validation and was omitted from the compiled policy.');
+    return;
+  }
+
+  warnings.push(...parsed.secretWarnings);
+  if (parsed.secretWarnings.length > 0) {
+    securityRisks.push(
+      'Potential secrets were detected in Professional Mode custom JSON. Remove credentials before submitting the policy.',
+    );
+  }
+
+  for (const fragment of parsed.fragments) {
+    iamStatements.push(fragment);
+    statements.push({
+      id: nextId(),
+      description: 'User-supplied AWS IAM statement (Professional Mode)',
+      plainEnglish:
+        'A custom IAM statement supplied by the author was appended to the generated policy. This is user-supplied content (Classification F) and is not validated against official Skillable samples.',
+      evidence: makeEvidence(
+        'F',
+        'User-supplied custom rule',
+        null,
+        null,
+        'Author-provided IAM statement merged into the compiled AWS policy by Professional Mode. Not derived from official Skillable samples.',
+        'application-generated',
+        'low',
+      ),
+      jsonFragment: fragment,
+      warnings: [
+        'Classification F — user-supplied. Review this statement for correctness, least privilege, and Skillable compatibility before use.',
+      ],
+    });
+  }
+
+  if (parsed.fragments.length > 0) {
+    warnings.push(
+      `${parsed.fragments.length} Professional Mode custom IAM statement(s) were appended to the compiled policy. These are Classification F and require manual review.`,
+    );
+  }
 }
 
 function countClassifications(

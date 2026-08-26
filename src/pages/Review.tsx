@@ -222,6 +222,12 @@ export default function Review() {
             <div className="text-xs text-muted mt-1">Application safety constraints</div>
           </div>
           <div>
+            <span className="evidence-badge evidence-F">
+              Class F: {policy.evidenceSummary.classificationF}
+            </span>
+            <div className="text-xs text-muted mt-1">User-supplied custom rules</div>
+          </div>
+          <div>
             <span className="evidence-badge evidence-G">
               Class G: {policy.evidenceSummary.classificationG}
             </span>
