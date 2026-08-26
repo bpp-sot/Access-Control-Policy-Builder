@@ -113,18 +113,21 @@ a:hover {
 }
 
 .app-header .logo-icon {
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
-  background: var(--gradient-accent);
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: transparent;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.7rem;
-  color: #fff;
-  font-weight: 800;
   flex-shrink: 0;
-  letter-spacing: -0.02em;
+  overflow: hidden;
+}
+
+.app-header .logo-mark {
+  width: 36px;
+  height: 36px;
+  display: block;
 }
 
 .app-header .logo-text {

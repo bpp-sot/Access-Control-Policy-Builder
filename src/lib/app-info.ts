@@ -24,13 +24,13 @@ export const APP_INFO = {
   /** Organisation the product is built for. */
   organisation: 'BPP School of Technology',
   /** Application version. Bump this when releasing a new build. */
-  version: '1.1.0',
+  version: '1.2.0',
   /** Short human-readable build label, included next to the version. */
-  buildLabel: 'Dependency Awareness',
+  buildLabel: 'AWS Launch Awareness',
 } as const;
 
-/** Convenience accessor for the version string, e.g. "v1.1.0". */
+/** Convenience accessor for the version string, e.g. "v1.2.0". */
 export const APP_VERSION = `v${APP_INFO.version}`;
 
-/** Full credit line for footers, e.g. "SoT Policy Studio v1.1.0". */
+/** Full credit line for footers, e.g. "SoT Policy Studio v1.2.0". */
 export const APP_CREDIT = `${APP_INFO.name} ${APP_VERSION}`;

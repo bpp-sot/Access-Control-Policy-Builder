@@ -51,7 +51,7 @@ export default function About() {
             </tr>
             <tr>
               <td className="font-semibold">Package Version</td>
-              <td>1.1.0</td>
+              <td>{APP_INFO.version}</td>
             </tr>
           </tbody>
         </table>

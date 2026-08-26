@@ -1,6 +1,7 @@
 import { Routes, Route, NavLink, Link } from 'react-router-dom';
 import { useTheme } from './lib/theme';
 import { APP_INFO, APP_VERSION } from './lib/app-info';
+import AppMark from './components/AppMark';
 import Home from './pages/Home';
 import NewPolicy from './pages/NewPolicy';
 import Projects from './pages/Projects';
@@ -27,7 +28,9 @@ export default function App() {
     <div className="app-layout">
       <header className="app-header">
         <Link to="/" className="logo" title={APP_INFO.tagline}>
-          <span className="logo-icon">{APP_INFO.monogram}</span>
+          <span className="logo-icon" aria-hidden="true">
+            <AppMark className="logo-mark" />
+          </span>
           <span className="logo-text">
             <span className="logo-name">{APP_INFO.name}</span>
             <span className="logo-tagline">{APP_INFO.tagline}</span>

@@ -1,7 +1,7 @@
 {
   "name": "skillable-acp-builder",
   "private": true,
-  "version": "1.1.0",
+  "version": "1.2.0",
   "type": "module",
   "description": "SoT Policy Studio — a wizard-driven static web application that helps Skillable lab authors configure and generate Access Control Policies for Microsoft Azure and Amazon Web Services without manually writing policy JSON.",
   "homepage": "./",
