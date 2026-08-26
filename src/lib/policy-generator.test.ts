@@ -343,6 +343,82 @@ describe('generatePolicy — AWS', () => {
     expect(json.Statement.length).toBeGreaterThan(0);
   });
 
+  it('auto-includes the minimum EC2 launch wizard discovery permissions for Create', () => {
+    const ec2Service: ServiceSelection = {
+      serviceId: 'aws-ec2',
+      operations: ['create'],
+      customResourceTypes: [],
+      allowedSkus: ['t2.micro'],
+      allowedNames: [],
+    };
+    const policy = generatePolicy(makeWizard({ provider: 'aws', services: [ec2Service] }));
+    const json = policy.policyJson as {
+      Statement: Array<{ Action: string | string[]; Resource: string; Effect: string }>;
+    };
+    const actions = json.Statement.flatMap((statement) =>
+      Array.isArray(statement.Action) ? statement.Action : [statement.Action],
+    );
+
+    expect(actions).toEqual(
+      expect.arrayContaining([
+        'ec2:RunInstances',
+        'ec2:DescribeInstances',
+        'ec2:DescribeImages',
+        'ec2:DescribeInstanceTypes',
+        'ec2:DescribeKeyPairs',
+        'ec2:DescribeVpcs',
+        'ec2:DescribeSubnets',
+        'ec2:DescribeSecurityGroups',
+      ]),
+    );
+    const discoveryStatement = json.Statement.find((statement) => {
+      const statementActions = Array.isArray(statement.Action)
+        ? statement.Action
+        : [statement.Action];
+      return statementActions.includes('ec2:DescribeVpcs');
+    });
+    expect(discoveryStatement?.Resource).toBe('*');
+  });
+
+  it('does not add standalone EBS or ENI creation actions for a basic EC2 launch', () => {
+    const ec2Service: ServiceSelection = {
+      serviceId: 'aws-ec2',
+      operations: ['create'],
+      customResourceTypes: [],
+      allowedSkus: ['t2.micro'],
+      allowedNames: [],
+    };
+    const policy = generatePolicy(makeWizard({ provider: 'aws', services: [ec2Service] }));
+    const json = policy.policyJson as {
+      Statement: Array<{ Action: string | string[] }>;
+    };
+    const actions = json.Statement.flatMap((statement) =>
+      Array.isArray(statement.Action) ? statement.Action : [statement.Action],
+    );
+
+    expect(actions).not.toContain('ec2:CreateVolume');
+    expect(actions).not.toContain('ec2:AttachVolume');
+    expect(actions).not.toContain('ec2:CreateNetworkInterface');
+  });
+
+  it('classifies EC2 launch dependencies as native AWS evidence', () => {
+    const ec2Service: ServiceSelection = {
+      serviceId: 'aws-ec2',
+      operations: ['create'],
+      customResourceTypes: [],
+      allowedSkus: ['t2.micro'],
+      allowedNames: [],
+    };
+    const policy = generatePolicy(makeWizard({ provider: 'aws', services: [ec2Service] }));
+    const dependencyStatement = policy.statements.find((statement) =>
+      statement.description.includes('launch wizard'),
+    );
+
+    expect(dependencyStatement).toBeDefined();
+    expect(dependencyStatement?.evidence.classification).toBe('D');
+    expect(dependencyStatement?.evidence.sourceUrl).toContain('docs.aws.amazon.com');
+  });
+
   it('generates a Deny statement for unapproved EC2 instance types', () => {
     const ec2Service: ServiceSelection = {
       serviceId: 'aws-ec2',

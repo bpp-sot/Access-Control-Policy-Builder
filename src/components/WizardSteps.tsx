@@ -1254,6 +1254,21 @@ export function Step7Operations() {
 
   return (
     <div>
+      {wizard.provider === 'aws' && (
+        <div className="alert alert-info mb-4">
+          <span>{'\u{2139}'}</span>
+          <div>
+            <strong>Note on AWS resource quantity controls:</strong> IAM identity-based policies
+            (what this tool generates) control <em>which actions</em> and{' '}
+            <em>which resource ARNs</em> are permitted, but <strong>not</strong> <em>how many</em>{' '}
+            resources may exist. To limit the number of AWS resources (for example, permitting only
+            one EC2 instance), use <strong>Service Control Policies (SCPs)</strong>,{' '}
+            <strong>Service Quotas</strong>, or other organisational controls — these are outside
+            the scope of IAM identity-based policies and must be configured at the AWS organisation
+            or account level. See the Documentation page for more detail.
+          </div>
+        </div>
+      )}
       {selectedServices.map(({ sel, svc }) => {
         if (!svc) return null;
         return (
