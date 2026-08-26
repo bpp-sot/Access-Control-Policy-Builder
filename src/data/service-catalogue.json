@@ -344,7 +344,95 @@
       "costSensitivity": "High",
       "identitySensitivity": "Medium",
       "networkExposureSensitivity": "Medium",
-      "notes": "EC2 is the most represented service in official AWS samples. Use ec2:InstanceType condition to restrict instance types."
+      "notes": "EC2 is the most represented service in official AWS samples. Use ec2:InstanceType condition to restrict instance types. The EC2 console launch wizard also requires Describe* discovery actions even when the learner only needs to create an instance.",
+      "dependencies": [
+        {
+          "serviceId": "aws-ec2",
+          "serviceName": "EC2 Launch Wizard Discovery",
+          "resourceTypes": [
+            "vpc",
+            "subnet",
+            "security-group",
+            "image",
+            "instance-type",
+            "key-pair"
+          ],
+          "iamActions": [
+            "ec2:DescribeImages",
+            "ec2:DescribeInstanceTypes",
+            "ec2:DescribeVpcs",
+            "ec2:DescribeSubnets",
+            "ec2:DescribeSecurityGroups",
+            "ec2:DescribeKeyPairs",
+            "ec2:DescribeInstances",
+            "ec2:DescribeAvailabilityZones"
+          ],
+          "reason": "The Amazon EC2 launch instance wizard cannot populate AMIs, instance types, VPCs, subnets, security groups, or Availability Zones unless these Describe* actions are allowed. Without them the console reports 'No VPCs found' / 'No subnets found' even when those resources already exist. Official AWS documentation: 'Example policies to control access to the Amazon EC2 console' — Basic launch instance wizard access.",
+          "required": true,
+          "autoIncluded": true,
+          "evidenceClassification": "D"
+        },
+        {
+          "serviceId": "aws-ec2",
+          "serviceName": "EBS Volumes (OS disk)",
+          "resourceTypes": ["volume"],
+          "iamActions": ["ec2:CreateVolume", "ec2:DescribeVolumes"],
+          "reason": "Launching from an Amazon EBS-backed AMI creates a volume. RunInstances therefore needs volume create/describe permission in addition to launching the instance itself. Official AWS documentation: 'Example policies for working with the AWS CLI or an AWS SDK' — Launch instances (RunInstances).",
+          "required": true,
+          "autoIncluded": true,
+          "evidenceClassification": "D"
+        },
+        {
+          "serviceId": "aws-ec2",
+          "serviceName": "Network Interfaces",
+          "resourceTypes": ["network-interface"],
+          "iamActions": ["ec2:CreateNetworkInterface", "ec2:DescribeNetworkInterfaces"],
+          "reason": "Launching into a VPC requires a subnet and creates a network interface. Without these actions a basic VPC launch can fail even when RunInstances itself is allowed. Official AWS documentation: RunInstances resource requirements.",
+          "required": true,
+          "autoIncluded": true,
+          "evidenceClassification": "D"
+        },
+        {
+          "serviceId": "aws-ec2",
+          "serviceName": "Security Group Creation",
+          "resourceTypes": ["security-group"],
+          "iamActions": ["ec2:CreateSecurityGroup", "ec2:AuthorizeSecurityGroupIngress"],
+          "reason": "The launch wizard can use an existing security group (DescribeSecurityGroups, already auto-included) or create a new one and add inbound rules. Opt in only if the lab requires learners to create or modify security groups rather than use a pre-deployed group.",
+          "required": false,
+          "autoIncluded": false,
+          "evidenceClassification": "D"
+        },
+        {
+          "serviceId": "aws-ec2",
+          "serviceName": "Key Pair Creation",
+          "resourceTypes": ["key-pair"],
+          "iamActions": ["ec2:CreateKeyPair"],
+          "reason": "The launch wizard can select an existing key pair (DescribeKeyPairs, already auto-included) or create a new one. Opt in only if learners must create key pairs in-lab rather than use a pre-provisioned pair.",
+          "required": false,
+          "autoIncluded": false,
+          "evidenceClassification": "D"
+        },
+        {
+          "serviceId": "aws-ec2",
+          "serviceName": "Public IP / Elastic IP",
+          "resourceTypes": ["elastic-ip"],
+          "iamActions": ["ec2:AllocateAddress", "ec2:AssociateAddress", "ec2:DescribeAddresses"],
+          "reason": "A default-VPC launch typically auto-assigns a public IP without Elastic IP permissions. Allocate/AssociateAddress are only needed if the lab uses Elastic IPs. Auto-assign public IP itself is a subnet attribute, not a separate IAM action; if the wizard still requires it, that is usually a subnet configuration issue rather than a missing permission.",
+          "required": false,
+          "autoIncluded": false,
+          "evidenceClassification": "D"
+        },
+        {
+          "serviceId": "aws-ec2",
+          "serviceName": "Instance Name Tags",
+          "resourceTypes": ["instance"],
+          "iamActions": ["ec2:CreateTags"],
+          "reason": "Specifying a Name in the launch wizard creates a tag and requires ec2:CreateTags. Without it the launch fails if the learner enters a name. Opt in only if the lab needs named instances; CreateTags is powerful because it can change resource tags.",
+          "required": false,
+          "autoIncluded": false,
+          "evidenceClassification": "D"
+        }
+      ]
     },
     {
       "id": "aws-s3",

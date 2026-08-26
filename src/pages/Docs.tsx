@@ -110,6 +110,12 @@ export default function Docs() {
             <code>StringNotEquals</code>.
           </li>
           <li>The model is allow-by-default: explicitly allow what is needed, deny what is not.</li>
+          <li>
+            Selecting EC2 with specific operations auto-includes the launch-wizard{' '}
+            <code>Describe*</code> discovery actions (Classification D — native AWS documentation)
+            so the console can list VPCs, subnets, AMIs, and instance types. Optional extras such as
+            Elastic IPs, key-pair creation, and <code>CreateTags</code> remain opt-in.
+          </li>
         </ul>
         <div className="alert alert-info mt-3">
           <span>{'\u{2139}'}</span>

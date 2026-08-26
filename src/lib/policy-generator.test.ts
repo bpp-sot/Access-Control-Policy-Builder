@@ -7,6 +7,18 @@ function makeWizard(overrides?: Partial<WizardState>): WizardState {
   return { ...createEmptyWizardState(), ...overrides };
 }
 
+function collectAllowActions(policyJson: unknown): {
+  actions: string[];
+  statements: Array<{ Action: string | string[]; Resource: string | string[]; Effect: string }>;
+} {
+  const json = policyJson as {
+    Statement: Array<{ Action: string | string[]; Resource: string | string[]; Effect: string }>;
+  };
+  const statements = json.Statement.filter((s) => s.Effect === 'Allow');
+  const actions = statements.flatMap((s) => (Array.isArray(s.Action) ? s.Action : [s.Action]));
+  return { actions, statements };
+}
+
 describe('generatePolicy — Azure', () => {
   it('throws if no provider is selected', () => {
     const wizard = makeWizard({ provider: null });
@@ -343,82 +355,6 @@ describe('generatePolicy — AWS', () => {
     expect(json.Statement.length).toBeGreaterThan(0);
   });
 
-  it('auto-includes the minimum EC2 launch wizard discovery permissions for Create', () => {
-    const ec2Service: ServiceSelection = {
-      serviceId: 'aws-ec2',
-      operations: ['create'],
-      customResourceTypes: [],
-      allowedSkus: ['t2.micro'],
-      allowedNames: [],
-    };
-    const policy = generatePolicy(makeWizard({ provider: 'aws', services: [ec2Service] }));
-    const json = policy.policyJson as {
-      Statement: Array<{ Action: string | string[]; Resource: string; Effect: string }>;
-    };
-    const actions = json.Statement.flatMap((statement) =>
-      Array.isArray(statement.Action) ? statement.Action : [statement.Action],
-    );
-
-    expect(actions).toEqual(
-      expect.arrayContaining([
-        'ec2:RunInstances',
-        'ec2:DescribeInstances',
-        'ec2:DescribeImages',
-        'ec2:DescribeInstanceTypes',
-        'ec2:DescribeKeyPairs',
-        'ec2:DescribeVpcs',
-        'ec2:DescribeSubnets',
-        'ec2:DescribeSecurityGroups',
-      ]),
-    );
-    const discoveryStatement = json.Statement.find((statement) => {
-      const statementActions = Array.isArray(statement.Action)
-        ? statement.Action
-        : [statement.Action];
-      return statementActions.includes('ec2:DescribeVpcs');
-    });
-    expect(discoveryStatement?.Resource).toBe('*');
-  });
-
-  it('does not add standalone EBS or ENI creation actions for a basic EC2 launch', () => {
-    const ec2Service: ServiceSelection = {
-      serviceId: 'aws-ec2',
-      operations: ['create'],
-      customResourceTypes: [],
-      allowedSkus: ['t2.micro'],
-      allowedNames: [],
-    };
-    const policy = generatePolicy(makeWizard({ provider: 'aws', services: [ec2Service] }));
-    const json = policy.policyJson as {
-      Statement: Array<{ Action: string | string[] }>;
-    };
-    const actions = json.Statement.flatMap((statement) =>
-      Array.isArray(statement.Action) ? statement.Action : [statement.Action],
-    );
-
-    expect(actions).not.toContain('ec2:CreateVolume');
-    expect(actions).not.toContain('ec2:AttachVolume');
-    expect(actions).not.toContain('ec2:CreateNetworkInterface');
-  });
-
-  it('classifies EC2 launch dependencies as native AWS evidence', () => {
-    const ec2Service: ServiceSelection = {
-      serviceId: 'aws-ec2',
-      operations: ['create'],
-      customResourceTypes: [],
-      allowedSkus: ['t2.micro'],
-      allowedNames: [],
-    };
-    const policy = generatePolicy(makeWizard({ provider: 'aws', services: [ec2Service] }));
-    const dependencyStatement = policy.statements.find((statement) =>
-      statement.description.includes('launch wizard'),
-    );
-
-    expect(dependencyStatement).toBeDefined();
-    expect(dependencyStatement?.evidence.classification).toBe('D');
-    expect(dependencyStatement?.evidence.sourceUrl).toContain('docs.aws.amazon.com');
-  });
-
   it('generates a Deny statement for unapproved EC2 instance types', () => {
     const ec2Service: ServiceSelection = {
       serviceId: 'aws-ec2',
@@ -490,14 +426,7 @@ describe('generatePolicy — AWS', () => {
     const wizard = makeWizard({ provider: 'aws', services: [ec2Service] });
     const policy = generatePolicy(wizard);
 
-    const json = policy.policyJson as {
-      Statement: Array<{ Action: string | string[]; Effect: string }>;
-    };
-
-    // The Allow statement should use an array of specific actions, not "ec2:*"
-    const allowStmt = json.Statement.find((s) => s.Effect === 'Allow');
-    expect(allowStmt).toBeDefined();
-    const actions = Array.isArray(allowStmt!.Action) ? allowStmt!.Action : [allowStmt!.Action];
+    const { actions } = collectAllowActions(policy.policyJson);
     // Should NOT contain a wildcard
     expect(actions.some((a) => a.includes('*'))).toBe(false);
     // Should contain specific actions derived from the operations
@@ -559,14 +488,28 @@ describe('generatePolicy — AWS', () => {
     const wizard = makeWizard({ provider: 'aws', services: [s3Service] });
     const policy = generatePolicy(wizard);
 
-    const json = policy.policyJson as {
-      Statement: Array<{ Action: string | string[]; Resource: string; Effect: string }>;
+    const { statements } = collectAllowActions(policy.policyJson);
+    // view/list map to Get*/List* which stay on Resource "*" (Describe-style).
+    // A mutating action with an ARN restriction is tested via upload.
+    expect(statements.some((s) => s.Resource === '*')).toBe(true);
+
+    const mutatingService: ServiceSelection = {
+      serviceId: 'aws-s3',
+      operations: ['upload'],
+      customResourceTypes: [],
+      allowedSkus: [],
+      allowedNames: ['arn:aws:s3:::my-lab-bucket'],
     };
-    const allowStmt = json.Statement.find(
-      (s) => s.Effect === 'Allow' && s.Action !== 'ec2:RunInstances',
+    const mutatingPolicy = generatePolicy(
+      makeWizard({ provider: 'aws', services: [mutatingService] }),
     );
-    expect(allowStmt).toBeDefined();
-    expect(allowStmt!.Resource).toBe('arn:aws:s3:::my-lab-bucket');
+    const mutating = collectAllowActions(mutatingPolicy.policyJson);
+    const scoped = mutating.statements.find((s) => {
+      const acts = Array.isArray(s.Action) ? s.Action : [s.Action];
+      return acts.includes('s3:PutObject');
+    });
+    expect(scoped).toBeDefined();
+    expect(scoped!.Resource).toBe('arn:aws:s3:::my-lab-bucket');
   });
 
   it('generates specific IAM actions for IAM service with privilege escalation warning', () => {
@@ -581,11 +524,7 @@ describe('generatePolicy — AWS', () => {
     const policy = generatePolicy(wizard);
 
     // Should have specific actions, not wildcard
-    const json = policy.policyJson as {
-      Statement: Array<{ Action: string | string[]; Effect: string }>;
-    };
-    const allowStmt = json.Statement.find((s) => s.Effect === 'Allow');
-    const actions = Array.isArray(allowStmt!.Action) ? allowStmt!.Action : [allowStmt!.Action];
+    const { actions } = collectAllowActions(policy.policyJson);
     expect(actions.some((a) => a === 'iam:*')).toBe(false);
     expect(actions).toContain('iam:GetUser'); // from view
     expect(actions).toContain('iam:ListUsers'); // from list
@@ -612,6 +551,118 @@ describe('generatePolicy — AWS', () => {
     // VPC uses ec2: prefix which IS covered by official samples
     expect(policy.warnings.some((w) => w.includes('VPC') && w.includes('No official'))).toBe(false);
     expect(policy.unsupportedCombinations.some((u) => u.includes('VPC'))).toBe(false);
+  });
+
+  it('auto-includes EC2 launch-wizard Describe* actions for a create-only selection', () => {
+    // Regression for the console Network Settings failure:
+    // "No VPCs found" / "No subnets found" when only RunInstances is granted.
+    const ec2Service: ServiceSelection = {
+      serviceId: 'aws-ec2',
+      operations: ['create'],
+      customResourceTypes: [],
+      allowedSkus: ['t2.micro'],
+      allowedNames: [],
+    };
+    const wizard = makeWizard({ provider: 'aws', services: [ec2Service] });
+    const policy = generatePolicy(wizard);
+    const { actions } = collectAllowActions(policy.policyJson);
+
+    expect(actions).toContain('ec2:RunInstances');
+    expect(actions).toContain('ec2:DescribeVpcs');
+    expect(actions).toContain('ec2:DescribeSubnets');
+    expect(actions).toContain('ec2:DescribeSecurityGroups');
+    expect(actions).toContain('ec2:DescribeImages');
+    expect(actions).toContain('ec2:DescribeInstanceTypes');
+    expect(actions).toContain('ec2:DescribeKeyPairs');
+    expect(actions).toContain('ec2:DescribeAvailabilityZones');
+    expect(actions).toContain('ec2:CreateVolume');
+    expect(actions).toContain('ec2:CreateNetworkInterface');
+
+    const discoveryStmt = policy.statements.find((s) =>
+      s.description.includes('launch wizard discovery'),
+    );
+    expect(discoveryStmt).toBeDefined();
+    expect(discoveryStmt?.evidence.classification).toBe('D');
+    expect(discoveryStmt?.evidence.sourceUrl).toContain('iam-policies-ec2-console');
+  });
+
+  it('does not auto-include optional EC2 actions such as AllocateAddress or CreateTags', () => {
+    const ec2Service: ServiceSelection = {
+      serviceId: 'aws-ec2',
+      operations: ['create'],
+      customResourceTypes: [],
+      allowedSkus: ['t2.micro'],
+      allowedNames: [],
+    };
+    const wizard = makeWizard({ provider: 'aws', services: [ec2Service] });
+    const { actions } = collectAllowActions(generatePolicy(wizard).policyJson);
+
+    expect(actions).not.toContain('ec2:AllocateAddress');
+    expect(actions).not.toContain('ec2:AssociateAddress');
+    expect(actions).not.toContain('ec2:CreateTags');
+    expect(actions).not.toContain('ec2:CreateKeyPair');
+    expect(actions).not.toContain('ec2:AuthorizeSecurityGroupIngress');
+  });
+
+  it('includes optional EC2 actions when the author opts in via customResourceTypes', () => {
+    const ec2Service: ServiceSelection = {
+      serviceId: 'aws-ec2',
+      operations: ['create'],
+      customResourceTypes: ['elastic-ip', 'instance', 'security-group', 'key-pair'],
+      allowedSkus: ['t2.micro'],
+      allowedNames: [],
+    };
+    const wizard = makeWizard({ provider: 'aws', services: [ec2Service] });
+    const { actions } = collectAllowActions(generatePolicy(wizard).policyJson);
+
+    expect(actions).toContain('ec2:AllocateAddress');
+    expect(actions).toContain('ec2:AssociateAddress');
+    expect(actions).toContain('ec2:CreateTags');
+    expect(actions).toContain('ec2:CreateKeyPair');
+    expect(actions).toContain('ec2:CreateSecurityGroup');
+    expect(actions).toContain('ec2:AuthorizeSecurityGroupIngress');
+  });
+
+  it('keeps EC2 Describe* actions on Resource * even when ARNs are restricted', () => {
+    const ec2Service: ServiceSelection = {
+      serviceId: 'aws-ec2',
+      operations: ['create'],
+      customResourceTypes: [],
+      allowedSkus: ['t2.micro'],
+      allowedNames: ['arn:aws:ec2:eu-west-2:123456789012:instance/*'],
+    };
+    const wizard = makeWizard({ provider: 'aws', services: [ec2Service] });
+    const { statements } = collectAllowActions(generatePolicy(wizard).policyJson);
+
+    const describeStmt = statements.find((s) => {
+      const acts = Array.isArray(s.Action) ? s.Action : [s.Action];
+      return acts.includes('ec2:DescribeVpcs');
+    });
+    expect(describeStmt).toBeDefined();
+    expect(describeStmt!.Resource).toBe('*');
+
+    const runStmt = statements.find((s) => {
+      const acts = Array.isArray(s.Action) ? s.Action : [s.Action];
+      return acts.includes('ec2:RunInstances');
+    });
+    expect(runStmt).toBeDefined();
+    expect(runStmt!.Resource).toBe('arn:aws:ec2:eu-west-2:123456789012:instance/*');
+  });
+
+  it('warns about optional EC2 dependencies that were not selected', () => {
+    const ec2Service: ServiceSelection = {
+      serviceId: 'aws-ec2',
+      operations: ['create'],
+      customResourceTypes: [],
+      allowedSkus: ['t2.micro'],
+      allowedNames: [],
+    };
+    const wizard = makeWizard({ provider: 'aws', services: [ec2Service] });
+    const policy = generatePolicy(wizard);
+
+    expect(policy.warnings.some((w) => w.includes('Public IP / Elastic IP'))).toBe(true);
+    expect(policy.warnings.some((w) => w.includes('Instance Name Tags'))).toBe(true);
+    expect(policy.securityRisks.some((r) => r.includes('Missing required dependency'))).toBe(false);
   });
 });
 

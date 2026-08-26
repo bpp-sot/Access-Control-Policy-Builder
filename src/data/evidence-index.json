@@ -242,6 +242,24 @@
       "sourceUrl": null,
       "rationale": "Human-friendly operation labels (View, Create, Delete, etc.) are mapped to provider-native actions based on standard naming conventions. No Skillable example demonstrates this mapping.",
       "confidence": "low"
+    },
+    {
+      "id": "ev-aws-ec2-launch-wizard-discovery",
+      "classification": "D",
+      "sourceTitle": "Example policies to control access to the Amazon EC2 console — Use the EC2 launch instance wizard",
+      "sourcePath": null,
+      "sourceUrl": "https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/iam-policies-ec2-console.html",
+      "rationale": "Official AWS documentation states that the EC2 launch instance wizard cannot load AMIs, instance types, VPCs, subnets, security groups, or key pairs unless the corresponding Describe* actions are allowed in addition to ec2:RunInstances. Amazon EC2 Describe* APIs do not support resource-level permissions.",
+      "confidence": "high"
+    },
+    {
+      "id": "ev-aws-ec2-runinstances-resources",
+      "classification": "D",
+      "sourceTitle": "Example policies for working with the AWS CLI or an AWS SDK — Launch instances (RunInstances)",
+      "sourcePath": null,
+      "sourceUrl": "https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ExamplePolicies_EC2.html",
+      "rationale": "Official AWS documentation states that launching into a VPC requires a subnet and creates a network interface, and launching from an Amazon EBS-backed AMI creates a volume. RunInstances therefore needs those supporting resource permissions in addition to launching the instance.",
+      "confidence": "high"
     }
   ]
 }

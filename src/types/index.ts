@@ -222,12 +222,19 @@ export interface ServiceDependency {
   autoIncluded?: boolean;
   /**
    * Evidence classification for the dependency claim.
-   * C = Native Azure documentation (e.g. Azure creates a managed disk
-   * automatically when provisioning a VM).
    * A = Official Skillable sample.
+   * C = Native Azure documentation.
+   * D = Native AWS documentation.
+   * E = Application safety constraint.
    * Defaults to A if omitted.
    */
   evidenceClassification?: EvidenceClassification;
+  /**
+   * AWS IAM actions required by this dependency. Used by the AWS generator
+   * so EC2 launch-wizard discovery and supporting resources can be granted
+   * without relying on a separate service's operation mapping.
+   */
+  iamActions?: string[];
 }
 
 export interface ServiceCatalogueEntry {

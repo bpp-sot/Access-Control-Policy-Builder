@@ -6,7 +6,7 @@
 npm run typecheck     # TypeScript type checking
 npm run lint          # ESLint
 npm run format:check  # Prettier format check
-npm run test          # Unit tests (Vitest, 45 tests)
+npm run test          # Unit tests (Vitest, 50 tests)
 npm run build         # Production build (typecheck + vite build)
 npm run test:e2e      # End-to-end tests (Playwright)
 npm run sync:policies # Sync policy examples from labauthor repo

@@ -957,8 +957,9 @@ export function Step6Services() {
               <div>
                 <div className="dependency-panel-title">Resource Dependencies Detected</div>
                 <div className="dependency-panel-subtitle">
-                  Some selected services require supporting Azure resources for successful
-                  deployment. These are based on resources included in official Skillable samples.
+                  {wizard.provider === 'aws'
+                    ? 'Some selected services require supporting IAM actions for a successful launch. Required discovery actions (for example EC2 DescribeVpcs / DescribeSubnets) are auto-included from native AWS documentation. Optional items can be added below.'
+                    : 'Some selected services require supporting Azure resources for successful deployment. These are based on resources included in official Skillable samples and native Azure documentation.'}
                 </div>
               </div>
             </div>
@@ -1017,7 +1018,10 @@ export function Step6Services() {
                               <div className="dependency-item-name">
                                 {dep.serviceName}
                                 <span className="dependency-item-types">
-                                  {dep.resourceTypes.join(', ')}
+                                  {(dep.iamActions && dep.iamActions.length > 0
+                                    ? dep.iamActions
+                                    : dep.resourceTypes
+                                  ).join(', ')}
                                 </span>
                                 {autoIncluded && (
                                   <span className="badge badge-info">Auto-included</span>
@@ -1063,7 +1067,10 @@ export function Step6Services() {
                               <div className="dependency-item-name">
                                 {dep.serviceName}
                                 <span className="dependency-item-types">
-                                  {dep.resourceTypes.join(', ')}
+                                  {(dep.iamActions && dep.iamActions.length > 0
+                                    ? dep.iamActions
+                                    : dep.resourceTypes
+                                  ).join(', ')}
                                 </span>
                                 {autoIncluded && (
                                   <span className="badge badge-info">Auto-included</span>

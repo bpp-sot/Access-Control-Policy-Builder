@@ -127,9 +127,9 @@ export function generateSecurityReview(
     items.push({
       severity: 'high',
       category: 'Missing Resource Dependencies',
-      description: `${missingDeps.length} required supporting resource(s) are not selected: ${missingDeps.map((d) => `${d.parent} → ${d.dep} (${d.types.join(', ')})`).join('; ')}. Azure deployment will likely fail because the policy will block creation of these supporting resources even though the primary resource type is permitted.`,
+      description: `${missingDeps.length} required supporting resource(s) are not selected: ${missingDeps.map((d) => `${d.parent} → ${d.dep} (${d.types.join(', ')})`).join('; ')}. Deployment or the cloud console launch wizard will likely fail because the policy will block these supporting resources or actions even though the primary service is permitted.`,
       recommendation:
-        'Return to the Services step and include the required supporting services, or use the "Include required" button in the dependency panel. This is the most common cause of VM deployment failures under Access Control Policies.',
+        'Return to the Services step and include the required supporting services, or use the "Include required" button in the dependency panel. Missing networking and discovery permissions are a common cause of VM / EC2 launch failures under Access Control Policies.',
     });
   }
 

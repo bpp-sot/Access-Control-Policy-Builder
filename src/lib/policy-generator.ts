@@ -604,6 +604,41 @@ function generateAwsPolicy(wizard: WizardState): GeneratedPolicy {
     }
   }
 
+  // ── AWS dependency awareness ────────────────────────────────────────
+  // Auto-included dependencies are merged into the generated Allow
+  // statement and are never treated as missing. Opt-in same-service
+  // dependencies (security group create, Elastic IPs, CreateTags) are
+  // warned about when not selected so authors can include them if the
+  // lab needs those capabilities.
+  const selectedServiceIds = new Set(services.map((s) => s.serviceId));
+  for (const sel of services) {
+    const svc = findAwsService(sel.serviceId);
+    if (!svc?.dependencies) continue;
+
+    for (const dep of svc.dependencies) {
+      if (dep.autoIncluded) continue;
+      const sameServiceOptedIn =
+        dep.serviceId === svc.id &&
+        dep.resourceTypes.every((rt) => sel.customResourceTypes.includes(rt));
+      const otherServiceSelected =
+        dep.serviceId !== svc.id && selectedServiceIds.has(dep.serviceId);
+      if (sameServiceOptedIn || otherServiceSelected) continue;
+
+      if (dep.required) {
+        warnings.push(
+          `${svc.name} requires ${dep.serviceName} (${(dep.iamActions ?? dep.resourceTypes).join(', ')}) for a successful launch, but it is not selected. ${dep.reason}`,
+        );
+        securityRisks.push(
+          `Missing required dependency: ${svc.name} needs ${dep.serviceName}. The EC2 launch wizard or RunInstances call may fail.`,
+        );
+      } else {
+        warnings.push(
+          `${svc.name} may require ${dep.serviceName} (${(dep.iamActions ?? dep.resourceTypes).join(', ')}) depending on your lab requirements. It is not currently selected. ${dep.reason}`,
+        );
+      }
+    }
+  }
+
   // Generate Allow statements for each selected service
   for (const sel of services) {
     const svc = findAwsService(sel.serviceId);
@@ -633,6 +668,25 @@ function generateAwsPolicy(wizard: WizardState): GeneratedPolicy {
           for (const a of svcActions) actionSet.add(a);
         }
       }
+
+      // ── AWS dependency awareness ──────────────────────────────────
+      // Auto-included dependencies (e.g. EC2 launch-wizard Describe*
+      // actions) are always merged so a create-only EC2 selection can
+      // still populate VPCs, subnets, AMIs and instance types.
+      // Opt-in same-service dependencies are merged only when their
+      // resource types appear in customResourceTypes.
+      // Evidence: Classification D — native AWS documentation.
+      if (svc.dependencies) {
+        for (const dep of svc.dependencies) {
+          const depActions = dep.iamActions ?? [];
+          if (depActions.length === 0) continue;
+          const optedIn = dep.resourceTypes.every((rt) => sel.customResourceTypes.includes(rt));
+          if (dep.autoIncluded || optedIn) {
+            for (const a of depActions) actionSet.add(a);
+          }
+        }
+      }
+
       actions = Array.from(actionSet).sort();
 
       // If no specific actions were found (e.g. an operation has no
@@ -647,14 +701,40 @@ function generateAwsPolicy(wizard: WizardState): GeneratedPolicy {
       usedWildcard = true;
     }
 
-    const actionList = actions.length === 1 ? actions[0] : actions;
-    const resourceArn = sel.allowedNames.length > 0 ? sel.allowedNames.join(',') : '*';
+    const describeActions = actions.filter((a) => /:Describe[A-Z]/.test(a) || /:List[A-Z]/.test(a));
+    const mutatingActions = actions.filter((a) => !describeActions.includes(a));
+    const resourceArn =
+      sel.allowedNames.length === 0
+        ? '*'
+        : sel.allowedNames.length === 1
+          ? sel.allowedNames[0]
+          : sel.allowedNames;
 
-    iamStatements.push({
-      Action: actionList,
-      Resource: resourceArn,
-      Effect: 'Allow',
-    });
+    // Describe*/List* APIs generally do not support resource-level
+    // permissions (official AWS note for EC2 Describe*). Keep them on
+    // Resource "*" even when the author scoped mutating actions.
+    if (describeActions.length > 0) {
+      iamStatements.push({
+        Action: describeActions.length === 1 ? describeActions[0] : describeActions,
+        Resource: '*',
+        Effect: 'Allow',
+      });
+    }
+    if (mutatingActions.length > 0) {
+      iamStatements.push({
+        Action: mutatingActions.length === 1 ? mutatingActions[0] : mutatingActions,
+        Resource: resourceArn,
+        Effect: 'Allow',
+      });
+    } else if (describeActions.length === 0) {
+      iamStatements.push({
+        Action: actions.length === 1 ? actions[0] : actions,
+        Resource: resourceArn,
+        Effect: 'Allow',
+      });
+    }
+
+    const actionList = actions.length === 1 ? actions[0] : actions;
 
     // Build evidence and warnings based on whether we used specific actions or wildcards
     const actionDescription = usedWildcard
@@ -782,6 +862,40 @@ function generateAwsPolicy(wizard: WizardState): GeneratedPolicy {
       warnings.push(
         'EC2 is selected but no instance types are restricted. Users can launch any instance type, including high-cost ones.',
       );
+    }
+
+    // Dedicated statement explaining auto-included EC2 launch-wizard
+    // discovery actions. These are Classification D (native AWS docs)
+    // and are not official Skillable samples.
+    if (svc.id === 'aws-ec2' && selectedOps.length > 0 && !usedWildcard) {
+      const launchDep = svc.dependencies?.find(
+        (d) => d.autoIncluded && d.serviceName === 'EC2 Launch Wizard Discovery',
+      );
+      if (launchDep?.iamActions && launchDep.iamActions.length > 0) {
+        statements.push({
+          id: stmtId('aws', ++n),
+          description: 'Allow EC2 launch wizard discovery actions',
+          plainEnglish:
+            'The EC2 console launch wizard needs read access to AMIs, instance types, VPCs, subnets, security groups, key pairs, existing instances, and Availability Zones. These Describe* actions are auto-included so the wizard can populate Network Settings instead of reporting "No VPCs found" or "No subnets found". Amazon EC2 Describe* APIs do not support resource-level permissions, so these actions are granted on Resource "*".',
+          evidence: makeEvidence(
+            'D',
+            'Example policies to control access to the Amazon EC2 console — Use the EC2 launch instance wizard',
+            null,
+            'https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/iam-policies-ec2-console.html',
+            'Official AWS documentation lists DescribeImages, DescribeInstanceTypes, DescribeVpcs, DescribeSubnets, DescribeSecurityGroups (or CreateSecurityGroup), and DescribeKeyPairs (or CreateKeyPair) as the minimum actions required for the launch wizard to load. DescribeAvailabilityZones is documented as the additional action needed to view Availability Zones. This is native AWS documentation (Classification D), not a Skillable sample.',
+            'application-generated',
+            'high',
+          ),
+          jsonFragment: {
+            Action: launchDep.iamActions,
+            Resource: '*',
+            Effect: 'Allow',
+          },
+          warnings: [
+            'These Describe* actions are automatically included when EC2 is selected with specific operations. They grant read access to existing account networking and AMI metadata; they do not create VPCs or subnets.',
+          ],
+        });
+      }
     }
   }
 
